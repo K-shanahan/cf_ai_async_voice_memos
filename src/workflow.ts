@@ -12,13 +12,23 @@ import { generateTaskContent } from './workflow/generate';
 // Re-export ProcessedTask for external use
 export type { ProcessedTask };
 
-export interface ProcessingResult {
-  status: 'completed' | 'failed';
-  taskId: string;
-  transcription?: string;
-  processedTasks?: ProcessedTask[];
-  error?: string;
-}
+/**
+ * Discriminated union for workflow processing results
+ * When status is 'completed', transcription and processedTasks are always defined
+ * When status is 'failed', error is always defined
+ */
+export type ProcessingResult =
+  | {
+      status: 'completed';
+      taskId: string;
+      transcription: string;
+      processedTasks: ProcessedTask[];
+    }
+  | {
+      status: 'failed';
+      taskId: string;
+      error: string;
+    };
 
 export interface WorkflowInput {
   taskId: string;
@@ -43,11 +53,9 @@ export async function processAudioWorkflow(
     // Step 1: Get transcription (either provided or retrieve audio and transcribe)
     let transcription = input.transcription;
     if (!transcription) {
-      // In a real implementation, retrieve audio from R2 and transcribe
-      // For tests, this is mocked
       try {
         const audioBuffer = await retrieveAudioFromR2(context, r2Key);
-        transcription = await transcribeAudio(audioBuffer, context);
+        transcription = await transcribeAudio(audioBuffer, context.env);
       } catch (error) {
         throw new Error(`Failed to transcribe audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
@@ -57,7 +65,7 @@ export async function processAudioWorkflow(
     let processedTasks: ProcessedTask[] = input.extractedTasks || [];
     if (!input.extractedTasks) {
       try {
-        processedTasks = await extractTasks(transcription, context);
+        processedTasks = await extractTasks(transcription, context.env);
       } catch (error) {
         throw new Error(`Failed to extract tasks: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
@@ -72,7 +80,7 @@ export async function processAudioWorkflow(
         try {
           let generatedContent = input.generatedContent;
           if (!generatedContent) {
-            generatedContent = await generateTaskContent(task.generative_task_prompt, context);
+            generatedContent = await generateTaskContent(task.generative_task_prompt, context.env);
           }
           if (generatedContent) {
             taskWithContent.generated_content = generatedContent;

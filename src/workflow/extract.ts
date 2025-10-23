@@ -1,4 +1,8 @@
-import type { MockWorkerContext } from '../test-utils';
+/**
+ * Step 2: Extract tasks from transcription using Cloudflare Workers AI (Llama 3)
+ */
+
+import type { Ai } from '@cloudflare/workers-types';
 
 export interface ProcessedTask {
   task: string;
@@ -7,44 +11,117 @@ export interface ProcessedTask {
   generated_content?: string;
 }
 
+interface AIEnv {
+  AI?: Ai;
+}
+
+const TASK_EXTRACTION_SYSTEM_PROMPT = `You are an assistant that extracts actionable tasks from transcribed text or voice memos.
+
+Your job is to:
+1. Identify all tasks, todos, reminders, or action items mentioned in the text
+2. For each task, provide:
+   - task: A clear, concise description of what needs to be done
+   - due: An ISO 8601 datetime string if a deadline is mentioned, otherwise null
+   - generative_task_prompt: A prompt to send to an LLM if the user wants AI-generated content for this task (e.g., "Draft an email to John"), otherwise null
+
+Respond ONLY with valid JSON. Do not include any other text.
+
+Example input:
+"Remind me to email the client tomorrow about the new proposal and draft a quick outline for it."
+
+Example output:
+{
+  "tasks": [
+    {
+      "task": "Email client about new proposal",
+      "due": "2025-10-24T09:00:00Z",
+      "generative_task_prompt": null
+    },
+    {
+      "task": "Draft outline for proposal",
+      "due": null,
+      "generative_task_prompt": "Draft a professional outline for a business proposal"
+    }
+  ]
+}`;
+
 /**
- * Step 3: Extract tasks from transcription using Llama 3
+ * Extract tasks from transcription using Llama 3
  */
 export async function extractTasks(
   transcription: string,
-  context: MockWorkerContext
+  env: AIEnv
 ): Promise<ProcessedTask[]> {
+  // Validate input
   if (!transcription || transcription.trim().length === 0) {
     throw new Error('Transcription is empty');
   }
 
-  // In a real implementation, this would call Workers AI Llama 3 model
-  // with a system prompt that demands JSON output
-  // For testing, we return mock tasks based on the transcription
-
-  // Mock implementation - parse transcription for tasks
-  const tasks: ProcessedTask[] = [];
-
-  if (transcription.toLowerCase().includes('email')) {
-    tasks.push({
-      task: 'Email client about new proposal',
-      due: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-      generative_task_prompt: null,
-    });
+  // Validate AI is available
+  if (!env.AI) {
+    throw new Error('Cloudflare Workers AI not available. Please configure AI binding in wrangler.toml');
   }
 
-  if (transcription.toLowerCase().includes('draft')) {
-    tasks.push({
-      task: 'Draft outline for client proposal',
-      due: null,
-      generative_task_prompt: 'Draft an outline for a client proposal',
-    });
-  }
+  try {
+    console.log(`Extracting tasks from transcription (length: ${transcription.length})`);
 
-  if (tasks.length === 0) {
-    // If no tasks extracted, throw error
-    throw new Error('No tasks could be extracted from transcription');
-  }
+    // Call Llama 3 model via Workers AI
+    const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+      prompt: `${TASK_EXTRACTION_SYSTEM_PROMPT}
 
-  return tasks;
+User text to extract tasks from:
+"${transcription}"
+
+Respond with only valid JSON.`,
+      max_tokens: 2048,
+    }) as { response: string };
+
+    if (!response || !response.response) {
+      throw new Error('Llama 3 returned empty response');
+    }
+
+    console.log(`Raw Llama response: ${response.response}`);
+
+    // Parse the JSON response
+    let tasksData: { tasks: ProcessedTask[] };
+    try {
+      // Extract JSON from response (Llama might include extra text)
+      const jsonMatch = response.response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in Llama response');
+      }
+
+      tasksData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      throw new Error(`Failed to parse Llama response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+    }
+
+    // Validate response structure
+    if (!tasksData.tasks || !Array.isArray(tasksData.tasks)) {
+      throw new Error('Response does not contain "tasks" array');
+    }
+
+    if (tasksData.tasks.length === 0) {
+      throw new Error('No tasks extracted from transcription');
+    }
+
+    // Validate each task has required fields
+    for (const task of tasksData.tasks) {
+      if (!task.task || typeof task.task !== 'string') {
+        throw new Error('Task missing or invalid "task" field');
+      }
+      if (task.due !== null && typeof task.due !== 'string') {
+        throw new Error('Task "due" field must be ISO 8601 string or null');
+      }
+      if (task.generative_task_prompt !== null && typeof task.generative_task_prompt !== 'string') {
+        throw new Error('Task "generative_task_prompt" field must be string or null');
+      }
+    }
+
+    console.log(`Extracted ${tasksData.tasks.length} tasks from transcription`);
+    return tasksData.tasks;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Task extraction failed: ${message}`);
+  }
 }

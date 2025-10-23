@@ -82,7 +82,7 @@ export async function handlePostMemo(
 
     // 4. Extract audio file
     const audioFile = formData.get('audio');
-    if (!audioFile || !(audioFile instanceof File)) {
+    if (!audioFile || typeof audioFile === 'string') {
       return new Response(
         JSON.stringify({
           error: 'Bad Request',
@@ -95,8 +95,11 @@ export async function handlePostMemo(
       );
     }
 
+    // Now we know audioFile is a File/Blob
+    const audio = audioFile as File;
+
     // 5. Validate file is not empty
-    if (audioFile.size === 0) {
+    if (audio.size === 0) {
       return new Response(
         JSON.stringify({
           error: 'Bad Request',
@@ -110,7 +113,7 @@ export async function handlePostMemo(
     }
 
     // 6. Validate file size
-    if (audioFile.size > MAX_FILE_SIZE) {
+    if (audio.size > MAX_FILE_SIZE) {
       return new Response(
         JSON.stringify({
           error: 'Payload Too Large',
@@ -124,11 +127,11 @@ export async function handlePostMemo(
     }
 
     // 7. Validate file MIME type
-    if (!ALLOWED_MIME_TYPES.includes(audioFile.type)) {
+    if (!ALLOWED_MIME_TYPES.includes(audio.type)) {
       return new Response(
         JSON.stringify({
           error: 'Unsupported Media Type',
-          message: `Audio file type '${audioFile.type}' is not supported. Supported types: ${ALLOWED_MIME_TYPES.join(', ')}`,
+          message: `Audio file type '${audio.type}' is not supported. Supported types: ${ALLOWED_MIME_TYPES.join(', ')}`,
         }),
         {
           status: 415,
@@ -157,14 +160,14 @@ export async function handlePostMemo(
     }
 
     // 10. Upload to R2
-    const audioBuffer = await audioFile.arrayBuffer();
+    const audioBuffer = await audio.arrayBuffer();
 
     uploadedR2Key = await uploadAudioToR2(
       r2Bucket,
       userId,
       taskId,
       audioBuffer,
-      audioFile.name || 'audio.webm'
+      audio.name || 'audio.webm'
     );
 
     // 11. Create database record
@@ -181,7 +184,10 @@ export async function handlePostMemo(
       throw dbError;
     }
 
-    // 12. Return 202 Accepted response
+    // 12. R2 event will automatically trigger the workflow when the file is uploaded
+    // No explicit workflow trigger needed - Cloudflare Workflows will handle it
+
+    // 13. Return 202 Accepted response
     return new Response(
       JSON.stringify({
         taskId,

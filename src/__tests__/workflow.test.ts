@@ -87,6 +87,12 @@ describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
       // Verify the workflow completed successfully
       expect(result.status).toBe('completed');
       expect(result.taskId).toBe(taskId);
+
+      // Narrow the type to completed result
+      if (result.status !== 'completed') {
+        throw new Error('Expected workflow to complete');
+      }
+
       expect(result.transcription).toBe(transcriptionText);
 
       // Verify processed tasks have correct structure
@@ -146,6 +152,12 @@ describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
 
       // Workflow should fail and report the error
       expect(result.status).toBe('failed');
+
+      // Narrow the type to failed result
+      if (result.status !== 'failed') {
+        throw new Error('Expected workflow to fail');
+      }
+
       expect(result.error).toContain('R2 connection failed');
 
       // D1 should be updated with failed status
@@ -179,6 +191,12 @@ describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
       const result = await processAudioWorkflow(workflowInput, mockContext);
 
       expect(result.status).toBe('failed');
+
+      // Narrow the type to failed result
+      if (result.status !== 'failed') {
+        throw new Error('Expected workflow to fail');
+      }
+
       expect(result.error).toBeDefined();
       expect(result.error).toContain('Whisper');
     });
@@ -210,6 +228,12 @@ describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
       const result = await processAudioWorkflow(workflowInput, mockContext);
 
       expect(result.status).toBe('failed');
+
+      // Narrow the type to failed result
+      if (result.status !== 'failed') {
+        throw new Error('Expected workflow to fail');
+      }
+
       expect(result.error).toContain('parse');
     });
 
@@ -256,6 +280,12 @@ describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
 
       // Workflow should still complete despite one task's generation failure
       expect(result.status).toBe('completed');
+
+      // Narrow the type to completed result
+      if (result.status !== 'completed') {
+        throw new Error('Expected workflow to complete');
+      }
+
       expect(result.processedTasks).toHaveLength(2);
 
       // First task should have content
@@ -306,6 +336,12 @@ describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
 
       // Should report failure when D1 update fails
       expect(result.status).toBe('failed');
+
+      // Narrow the type to failed result
+      if (result.status !== 'failed') {
+        throw new Error('Expected workflow to fail');
+      }
+
       expect(result.error).toBeDefined();
       expect(result.error).toContain('Database connection failed');
     });

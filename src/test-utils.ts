@@ -1,22 +1,16 @@
 import { vi, Vitest } from 'vitest';
 
 /**
- * Strongly-typed mock context for testing
+ * Mock context for testing
+ * Uses 'any' for Cloudflare bindings since mocks don't need to match exact types
  */
-export interface MockD1Database {
-  prepare: Vitest['fn'];
-}
-
-export interface MockR2Bucket {
-  put: Vitest['fn'];
-  get: Vitest['fn'];
-  delete: Vitest['fn'];
-}
-
 export interface MockWorkerContext {
   env: {
-    DB: MockD1Database;
-    R2_BUCKET: MockR2Bucket;
+    DB: any;
+    R2_BUCKET: any;
+    AUDIO_PROCESSING_WORKFLOW: any;
+    AI: any;
+    ENVIRONMENT: string;
   };
   data: {
     userId?: string;
@@ -24,7 +18,7 @@ export interface MockWorkerContext {
 }
 
 /**
- * Create a mock Cloudflare Worker context with proper typing
+ * Create a mock Cloudflare Worker context for testing
  */
 export function createMockContext(): MockWorkerContext {
   const prepareMock = vi.fn();
@@ -33,7 +27,7 @@ export function createMockContext(): MockWorkerContext {
   const firstMock = vi.fn().mockResolvedValue(null);
   const allMock = vi.fn().mockResolvedValue([]);
 
-  // Chain the mocks properly
+  // Chain the mocks properly for D1
   bindMock.mockReturnValue({
     run: runMock,
     first: firstMock,
@@ -45,21 +39,30 @@ export function createMockContext(): MockWorkerContext {
     run: runMock,
   });
 
-  // Create empty mocks that tests can fully override
+  // Create individual service mocks
   const getMock = vi.fn(() => Promise.resolve(null));
   const putMock = vi.fn(() => Promise.resolve({ key: '' }));
   const deleteMock = vi.fn(() => Promise.resolve(undefined));
+  const aiRunMock = vi.fn(() => Promise.resolve({ response: 'mock response' }));
+  const workflowCreateMock = vi.fn(() => Promise.resolve(undefined));
 
   return {
     env: {
       DB: {
         prepare: prepareMock,
-      },
+      } as any,
       R2_BUCKET: {
         put: putMock,
         get: getMock,
         delete: deleteMock,
-      },
+      } as any,
+      AUDIO_PROCESSING_WORKFLOW: {
+        create: workflowCreateMock,
+      } as any,
+      AI: {
+        run: aiRunMock,
+      } as any,
+      ENVIRONMENT: 'development',
     },
     data: {
       userId: 'test-user-123',
@@ -76,9 +79,18 @@ export function createAudioRequest(
   mimeType: string = 'audio/webm'
 ): Request {
   const formData = new FormData();
-  const blob = audioData instanceof Buffer
-    ? new Blob([audioData], { type: mimeType })
-    : audioData;
+
+  // Ensure we have a Blob for the form data
+  let blob: Blob;
+  if (audioData instanceof Buffer) {
+    blob = new Blob([audioData], { type: mimeType });
+  } else if (audioData instanceof Blob) {
+    blob = audioData;
+  } else {
+    // Fallback: treat as ArrayBuffer-like
+    blob = new Blob([audioData as unknown as ArrayBuffer], { type: mimeType });
+  }
+
   formData.append('audio', blob, filename);
 
   return new Request('http://localhost/api/v1/memo', {

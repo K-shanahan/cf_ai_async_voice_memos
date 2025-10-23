@@ -20,3 +20,13 @@ binding = "R2_BUCKET"
 bucket_name = "voice-memos"
 jurisdiction = "eu"
 preview_bucket_name = "voice-memos-preview"
+
+# Workflow for async audio processing
+[[workflows]]
+name = "audio-processing"
+binding = "AUDIO_PROCESSING_WORKFLOW"
+class_name = "AudioProcessingWorkflow"
+
+# Cloudflare Workers AI binding
+[ai]
+binding = "AI"

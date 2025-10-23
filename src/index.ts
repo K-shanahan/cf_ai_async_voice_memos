@@ -1,10 +1,13 @@
 import { handlePostMemo } from './handlers/memo';
 import { handleGetMemo } from './handlers/memo-get';
 import { handleGetAudio } from './handlers/memo-audio';
+import { AudioProcessingWorkflow } from './workflow-handler';
 
 export interface Env {
   DB: D1Database;
   R2_BUCKET: R2Bucket;
+  AUDIO_PROCESSING_WORKFLOW: Workflow;
+  AI: Ai;
   ENVIRONMENT: string;
 }
 
@@ -51,3 +54,10 @@ export default {
     return new Response('Not Found', { status: 404 });
   },
 };
+
+/**
+ * Export the workflow class for Cloudflare Workflows
+ * The name must match the "class_name" in wrangler.toml
+ * This is called automatically by Cloudflare when an R2 Object Created event occurs
+ */
+export { AudioProcessingWorkflow };

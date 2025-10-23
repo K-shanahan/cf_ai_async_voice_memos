@@ -4,6 +4,13 @@ import { join } from 'path';
 import { pollTaskCompletion } from './helpers/test-utils';
 
 /**
+ * Skip async workflow tests in local dev mode
+ * R2 Object Created events don't trigger Workflows in local wrangler dev
+ * These tests are meant for CI/production environments
+ */
+const skipWorkflowTests = !process.env.CI;
+
+/**
  * Integration tests against the actual running wrangler dev server.
  *
  * These tests verify:
@@ -66,45 +73,56 @@ describe('POST /api/v1/memo - Integration Tests (Real API)', () => {
       expect(data.statusUrl).toBe(`/api/v1/memo/${data.taskId}`);
     });
 
-    it('Uploads, processes, and completes a real audio file', async () => {
-      // NOTE: This test requires async processing to be implemented (e.g., via Cloudflare Queues or Cron).
-      // Currently, the system accepts files but doesn't process them asynchronously.
-      // This test verifies that:
-      // 1. POST endpoint accepts the file (202)
-      // 2. Task is created with pending status
-      // 3. Response includes required fields
-      const audioData = new Uint8Array(getTestAudioFile());
-      const formData = new FormData();
-      formData.append('audio', new Blob([audioData], { type: 'audio/webm' }), 'test.webm');
+    it.skipIf(skipWorkflowTests)(
+      'Uploads, processes, and completes a real audio file',
+      async () => {
+        // This test verifies the complete async workflow:
+        // 1. POST endpoint accepts the file (202)
+        // 2. Task is created with pending status
+        // 3. Workflow processes asynchronously
+        // 4. Task transitions to completed with results
+        const audioData = new Uint8Array(getTestAudioFile());
+        const formData = new FormData();
+        formData.append('audio', new Blob([audioData], { type: 'audio/webm' }), 'test.webm');
 
-      // Step 1: Upload file
-      const uploadResponse = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'X-User-Id': TEST_USER_ID },
-        body: formData,
-      });
+        // Step 1: Upload file
+        const uploadResponse = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'X-User-Id': TEST_USER_ID },
+          body: formData,
+        });
 
-      expect(uploadResponse.status).toBe(202);
-      const uploadData = await uploadResponse.json() as any;
-      const taskId = uploadData.taskId;
+        expect(uploadResponse.status).toBe(202);
+        const uploadData = await uploadResponse.json() as any;
+        const taskId = uploadData.taskId;
 
-      // Step 2: Verify initial task status
-      const getResponse = await fetch(`http://localhost:8787/api/v1/memo/${taskId}`, {
-        method: 'GET',
-        headers: { 'X-User-Id': TEST_USER_ID },
-      });
+        // Step 2: Verify initial task status
+        const getResponse = await fetch(`http://localhost:8787/api/v1/memo/${taskId}`, {
+          method: 'GET',
+          headers: { 'X-User-Id': TEST_USER_ID },
+        });
 
-      expect(getResponse.status).toBe(200);
-      const task = await getResponse.json() as any;
+        expect(getResponse.status).toBe(200);
+        const task = await getResponse.json() as any;
 
-      // Step 3: Verify the task exists with proper structure
-      expect(task.taskId).toBe(taskId);
-      expect(task.status).toBe('pending');
-      expect(task.createdAt).toBeDefined();
-      expect(task.updatedAt).toBeDefined();
-      expect(task.transcription).toBeUndefined(); // Not yet processed
-      expect(task.processedTasks).toBeUndefined(); // Not yet processed
-    });
+        // Step 3: Verify the task exists with proper structure (initially pending)
+        expect(task.taskId).toBe(taskId);
+        expect(task.status).toBe('pending');
+        expect(task.createdAt).toBeDefined();
+        expect(task.updatedAt).toBeDefined();
+        expect(task.transcription).toBeUndefined(); // Not yet processed
+        expect(task.processedTasks).toBeUndefined(); // Not yet processed
+
+        // Step 4: Poll for workflow completion
+        const completedTask = await pollTaskCompletion(taskId, TEST_USER_ID, 60000, 500);
+
+        // Step 5: Verify task completed with results
+        expect(completedTask.status).toBe('completed');
+        expect(completedTask.transcription).toBeDefined();
+        expect(completedTask.processedTasks).toBeDefined();
+        expect(Array.isArray(completedTask.processedTasks)).toBe(true);
+      }
+    );
 
     it('Multiple uploads generate unique taskIds', async () => {
       const uploadFile = async () => {
@@ -219,8 +237,8 @@ describe('POST /api/v1/memo - Integration Tests (Real API)', () => {
 
   describe('📋 Edge Cases - Real API', () => {
     it('Processes audio files with different MIME types (mp3)', async () => {
-      // NOTE: This test requires async processing to be implemented.
-      // Verifies that the server accepts files with different MIME types.
+      // Verifies that the server accepts files with different MIME types
+      // and that the workflow can process them.
       const formData = new FormData();
       const audioData = new Uint8Array(getTestAudioFile());
       // Sending a webm file with mp3 MIME type to test MIME type handling
@@ -248,8 +266,7 @@ describe('POST /api/v1/memo - Integration Tests (Real API)', () => {
     });
 
     it('Processes audio files with wav format', async () => {
-      // NOTE: This test requires async processing to be implemented.
-      // Verifies that wav format audio files are accepted.
+      // Verifies that wav format audio files are accepted and can be processed.
       const formData = new FormData();
       const audioData = new Uint8Array(getTestAudioFile());
       formData.append('audio', new Blob([audioData], { type: 'audio/wav' }), 'recording.wav');
@@ -379,6 +396,8 @@ describe('POST /api/v1/memo - Integration Tests (Real API)', () => {
       expect(getResponse.status).toBe(200);
       const task = await getResponse.json() as any;
       expect(task.taskId).toBe(taskId);
+      console.log('Task Status', task.status);
+      console.log('Task Error', task.error);
       expect(task.status).toBe('pending');
       // The system generates safe keys based on taskId, not user-provided filenames
     });
