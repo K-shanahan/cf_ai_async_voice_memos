@@ -46,3 +46,12 @@ yarn-error.log*
 # Temporary files
 *.tmp
 .cache/
+
+# pnpm
+pnpm-lock.yaml
+.pnpm/
+
+# Monorepo specific
+packages/*/dist/
+packages/*/build/
+packages/*/.wrangler/

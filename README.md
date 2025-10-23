@@ -2,6 +2,13 @@
 
 A serverless system that transcribes voice memos and automatically extracts actionable tasks using AI.
 
+> **📦 Monorepo Structure**: This project is organized as a **pnpm workspaces monorepo** with three packages:
+> - **`@project/shared`** - Shared types, API client, and utilities
+> - **`@project/backend`** - Cloudflare Workers REST API
+> - **`@project/frontend`** - React web application
+>
+> See [MONOREPO_STRUCTURE.md](./MONOREPO_STRUCTURE.md) for detailed information about the project layout and how to work with it.
+
 **Upload audio → Transcribe (Whisper) → Extract Tasks (Llama) → Generate Content (Llama) → View Results**
 
 ## Features
