@@ -72,10 +72,10 @@ export async function handleGetAudio(
       );
     }
 
-    // Fetch task from database with security check (both taskId and userId)
+    // Fetch task from database by taskId, filtered by userId (filter-in-select pattern)
     const task = await getTask(db, taskId, userId);
 
-    // Task not found (including security check)
+    // Task not found (either doesn't exist or belongs to different user)
     if (!task) {
       return new Response(
         JSON.stringify({

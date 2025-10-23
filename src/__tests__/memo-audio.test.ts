@@ -1,14 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createMockContext, MockWorkerContext } from '../test-utils';
 import { handleGetAudio } from '../handlers/memo-audio';
+import type { Task } from '../db';
 
 /**
  * Utility: Create a consistent, complete R2 object mock
- * Prevents brittle tests due to incomplete mock structure
+ * Returns an exact copy of the buffer's contents as ArrayBuffer (not the pooled buffer)
  */
 function createMockR2Object(audioBuffer: Buffer = Buffer.from('mock audio')) {
+  // Create an ArrayBuffer that is an exact copy of the Buffer's view
+  const exactArrayBuffer = audioBuffer.buffer.slice(
+    audioBuffer.byteOffset,
+    audioBuffer.byteOffset + audioBuffer.length
+  );
+
   return {
-    arrayBuffer: vi.fn().mockResolvedValue(audioBuffer.buffer),
+    arrayBuffer: vi.fn().mockResolvedValue(exactArrayBuffer),
     size: audioBuffer.length,
   };
 }
@@ -16,7 +23,7 @@ function createMockR2Object(audioBuffer: Buffer = Buffer.from('mock audio')) {
 /**
  * Utility: Create a complete mock task record
  */
-function createMockTask(overrides: Partial<any> = {}) {
+function createMockTask(overrides: Partial<Task> = {}): Task {
   return {
     taskId: 'c7a2b0e8-5f6a-4b9a-8f0c-1b2d3c4e5f6a',
     userId: 'test-user-123',
@@ -195,6 +202,62 @@ describe('GET /api/v1/memo/audio/{taskId} - Audio File Retrieval', () => {
       // Assert
       expect(response.headers.get('Content-Type')).toBe('audio/webm');
     });
+
+    it('Defaults to audio/webm for files with no extension', async () => {
+      const audioBuffer = Buffer.from('mock audio');
+      const taskId = 'task-no-ext';
+      const userId = 'test-user-123';
+      const r2Key = `uploads/${userId}/${taskId}`; // No extension
+      const request = new Request(`http://localhost/api/v1/memo/audio/${taskId}`);
+
+      const task = createMockTask({ taskId, userId, r2Key });
+
+      const prepareMock = mockContext.env.DB.prepare as any;
+      prepareMock.mockReturnValue({
+        bind: vi.fn().mockReturnValue({
+          first: vi.fn().mockResolvedValue(task),
+        }),
+      });
+
+      const r2Object = createMockR2Object(audioBuffer);
+      (mockContext.env.R2_BUCKET.get as any).mockResolvedValue(r2Object);
+
+      mockContext.data.userId = userId;
+
+      // Execute
+      const response = await handleGetAudio(request, mockContext);
+
+      // Assert - defaults to webm when no extension
+      expect(response.headers.get('Content-Type')).toBe('audio/webm');
+    });
+
+    it('Defaults to audio/webm for files ending with a dot', async () => {
+      const audioBuffer = Buffer.from('mock audio');
+      const taskId = 'task-dot';
+      const userId = 'test-user-123';
+      const r2Key = `uploads/${userId}/${taskId}.`; // Trailing dot
+      const request = new Request(`http://localhost/api/v1/memo/audio/${taskId}`);
+
+      const task = createMockTask({ taskId, userId, r2Key });
+
+      const prepareMock = mockContext.env.DB.prepare as any;
+      prepareMock.mockReturnValue({
+        bind: vi.fn().mockReturnValue({
+          first: vi.fn().mockResolvedValue(task),
+        }),
+      });
+
+      const r2Object = createMockR2Object(audioBuffer);
+      (mockContext.env.R2_BUCKET.get as any).mockResolvedValue(r2Object);
+
+      mockContext.data.userId = userId;
+
+      // Execute
+      const response = await handleGetAudio(request, mockContext);
+
+      // Assert - defaults to webm when extension is just a dot
+      expect(response.headers.get('Content-Type')).toBe('audio/webm');
+    });
   });
 
   describe('❌ Error Cases - Audio Not Found', () => {
@@ -241,6 +304,8 @@ describe('GET /api/v1/memo/audio/{taskId} - Audio File Retrieval', () => {
 
       // Assert
       expect(response.status).toBe(404);
+      const data = await response.json() as any;
+      expect(data.error).toBe('Not Found');
     });
 
     it('Returns 500 if R2 retrieval fails (dependency error)', async () => {
@@ -289,63 +354,36 @@ describe('GET /api/v1/memo/audio/{taskId} - Audio File Retrieval', () => {
       expect(mockContext.env.R2_BUCKET.get).not.toHaveBeenCalled();
     });
 
-    it('Prevents access to audio files of other users (404 after auth, no R2 access)', async () => {
-      const task = createMockTask({ userId: 'user-alice' });
-      const request = new Request(`http://localhost/api/v1/memo/audio/${task.taskId}`);
+    it('Prevents access to audio files of other users (404 with filter-in-select pattern)', async () => {
+      const taskId = 'c7a2b0e8-5f6a-4b9a-8f0c-1b2d3c4e5f6a';
+      const request = new Request(`http://localhost/api/v1/memo/audio/${taskId}`);
 
       const prepareMock = mockContext.env.DB.prepare as any;
-      prepareMock.mockReturnValue({
-        bind: vi.fn().mockReturnValue({
-          first: vi.fn().mockResolvedValue(task),
-        }),
+      const bindMock = vi.fn().mockReturnValue({
+        first: vi.fn().mockResolvedValue(null), // No task found because userId doesn't match in SQL
       });
+      prepareMock.mockReturnValue({ bind: bindMock });
 
-      mockContext.data.userId = 'user-bob'; // Different user
+      mockContext.data.userId = 'user-bob';
 
       // Execute
       const response = await handleGetAudio(request, mockContext);
 
-      // Assert - 404 because task belongs to different user
+      // Assert - 404 because task doesn't exist for this user
       expect(response.status).toBe(404);
+      const data = await response.json() as any;
+      expect(data.error).toBe('Not Found');
 
-      // Assert - DB was queried to check ownership
-      expect(mockContext.env.DB.prepare).toHaveBeenCalled();
-
-      // Assert - R2 was NOT accessed (fail fast after auth check)
-      expect(mockContext.env.R2_BUCKET.get).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('🔄 Database Query Verification', () => {
-    it('Queries database with correct SQL and taskId binding', async () => {
-      const audioBuffer = Buffer.from('mock audio');
-      const task = createMockTask();
-      const request = new Request(`http://localhost/api/v1/memo/audio/${task.taskId}`);
-
-      const prepareMock = mockContext.env.DB.prepare as any;
-      const firstMock = vi.fn().mockResolvedValue(task);
-      const bindMock = vi.fn().mockReturnValue({ first: firstMock });
-      prepareMock.mockReturnValue({ bind: bindMock });
-
-      const r2Object = createMockR2Object(audioBuffer);
-      (mockContext.env.R2_BUCKET.get as any).mockResolvedValue(r2Object);
-
-      mockContext.data.userId = task.userId;
-
-      // Execute
-      await handleGetAudio(request, mockContext);
-
-      // Assert prepare was called with SELECT query
-      expect(prepareMock).toHaveBeenCalled();
+      // Assert - DB was queried with the correct filter-in-select pattern
       const sqlCall = prepareMock.mock.calls[0][0];
-      expect(sqlCall).toContain('SELECT');
       expect(sqlCall).toContain('WHERE taskId = ?');
+      expect(sqlCall).toContain('AND userId = ?');
 
-      // Assert bind was called with taskId
-      expect(bindMock).toHaveBeenCalledWith(task.taskId);
+      // Assert - bind was called with both taskId and userId
+      expect(bindMock).toHaveBeenCalledWith(taskId, 'user-bob');
 
-      // Assert first() was called
-      expect(firstMock).toHaveBeenCalled();
+      // Assert - R2 was NOT accessed (no task found)
+      expect(mockContext.env.R2_BUCKET.get).not.toHaveBeenCalled();
     });
   });
 

@@ -45,15 +45,20 @@ export function createMockContext(): MockWorkerContext {
     run: runMock,
   });
 
+  // Create empty mocks that tests can fully override
+  const getMock = vi.fn(() => Promise.resolve(null));
+  const putMock = vi.fn(() => Promise.resolve({ key: '' }));
+  const deleteMock = vi.fn(() => Promise.resolve(undefined));
+
   return {
     env: {
       DB: {
         prepare: prepareMock,
       },
       R2_BUCKET: {
-        put: vi.fn().mockResolvedValue({ key: '' }),
-        get: vi.fn().mockResolvedValue(null),
-        delete: vi.fn().mockResolvedValue(undefined),
+        put: putMock,
+        get: getMock,
+        delete: deleteMock,
       },
     },
     data: {
