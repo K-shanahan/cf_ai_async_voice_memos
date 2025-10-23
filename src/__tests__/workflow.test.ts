@@ -1,27 +1,25 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { createMockContext, MockWorkerContext } from '../test-utils';
-import type { ProcessingResult, ProcessedTask, WorkflowInput } from '../workflow';
+import type { ProcessingResult, WorkflowInput } from '../workflow';
+import type { ProcessedTask } from '../workflow/extract';
 
-// Mock ONLY the dependencies of processAudioWorkflow
-// The real processAudioWorkflow function will execute
-vi.mock('../workflow', async (importOriginal) => {
-  const original = await importOriginal() as any;
-  return {
-    ...original, // Keep all other exports (including types)
-    // Overwrite ONLY the helper functions we want to mock
-    transcribeAudio: vi.fn(),
-    extractTasks: vi.fn(),
-    generateTaskContent: vi.fn(),
-    // NOTE: We are NOT mocking processAudioWorkflow - it will be real
-  };
-});
+// Mock the separate helper modules so that mocks are properly applied
+vi.mock('../workflow/transcribe');
+vi.mock('../workflow/extract');
+vi.mock('../workflow/generate');
 
 import {
   processAudioWorkflow,
-  transcribeAudio,
-  extractTasks,
-  generateTaskContent,
 } from '../workflow';
+import {
+  transcribeAudio,
+} from '../workflow/transcribe';
+import {
+  extractTasks,
+} from '../workflow/extract';
+import {
+  generateTaskContent,
+} from '../workflow/generate';
 
 describe('Phase 2: Processing Workflow - Audio to Tasks Pipeline', () => {
   let mockContext: MockWorkerContext;

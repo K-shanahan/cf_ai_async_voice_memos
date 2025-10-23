@@ -5,13 +5,12 @@
 
 import type { MockWorkerContext } from './test-utils';
 import { updateTaskResults, updateTaskError } from './db';
+import { transcribeAudio } from './workflow/transcribe';
+import { extractTasks, type ProcessedTask } from './workflow/extract';
+import { generateTaskContent } from './workflow/generate';
 
-export interface ProcessedTask {
-  task: string;
-  due: string | null;
-  generative_task_prompt: string | null;
-  generated_content?: string;
-}
+// Re-export ProcessedTask for external use
+export type { ProcessedTask };
 
 export interface ProcessingResult {
   status: 'completed' | 'failed';
@@ -129,87 +128,4 @@ async function retrieveAudioFromR2(
   }
 
   return await r2Object.arrayBuffer();
-}
-
-/**
- * Step 2: Transcribe audio using Whisper
- */
-export async function transcribeAudio(
-  audioBuffer: ArrayBuffer | Buffer,
-  context: MockWorkerContext
-): Promise<string> {
-  // In a real implementation, this would call Workers AI Whisper model
-  // For testing, we return a mock transcription
-  if (!audioBuffer) {
-    throw new Error('Audio buffer is required for Whisper transcription');
-  }
-
-  // Check if buffer has content (ArrayBuffer has byteLength, Buffer has length)
-  const size = (audioBuffer as any).byteLength || (audioBuffer as any).length;
-  if (size === 0 || size === undefined) {
-    throw new Error('Audio buffer is empty for Whisper transcription');
-  }
-
-  // Mock implementation for testing
-  return 'Remind me to email the client tomorrow about the new proposal and draft a quick outline for it.';
-}
-
-/**
- * Step 3: Extract tasks from transcription using Llama 3
- */
-export async function extractTasks(
-  transcription: string,
-  context: MockWorkerContext
-): Promise<ProcessedTask[]> {
-  if (!transcription || transcription.trim().length === 0) {
-    throw new Error('Transcription is empty');
-  }
-
-  // In a real implementation, this would call Workers AI Llama 3 model
-  // with a system prompt that demands JSON output
-  // For testing, we return mock tasks based on the transcription
-
-  // Mock implementation - parse transcription for tasks
-  const tasks: ProcessedTask[] = [];
-
-  if (transcription.toLowerCase().includes('email')) {
-    tasks.push({
-      task: 'Email client about new proposal',
-      due: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-      generative_task_prompt: null,
-    });
-  }
-
-  if (transcription.toLowerCase().includes('draft')) {
-    tasks.push({
-      task: 'Draft outline for client proposal',
-      due: null,
-      generative_task_prompt: 'Draft an outline for a client proposal',
-    });
-  }
-
-  if (tasks.length === 0) {
-    // If no tasks extracted, throw error
-    throw new Error('No tasks could be extracted from transcription');
-  }
-
-  return tasks;
-}
-
-/**
- * Step 4: Generate content for tasks using Llama 3
- */
-export async function generateTaskContent(
-  prompt: string,
-  context: MockWorkerContext
-): Promise<string> {
-  if (!prompt || prompt.trim().length === 0) {
-    throw new Error('Prompt is empty');
-  }
-
-  // In a real implementation, this would call Workers AI Llama 3 model
-  // For testing, we return mock generated content
-
-  // Mock implementation - generate simple structured content
-  return '1. Introduction\n2. Key Objectives\n3. Timeline\n4. Budget\n5. Next Steps';
 }

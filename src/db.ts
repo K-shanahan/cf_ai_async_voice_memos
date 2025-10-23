@@ -84,11 +84,7 @@ export async function updateTaskResults(
 ): Promise<void> {
   const now = new Date().toISOString();
 
-  const query = `
-    UPDATE tasks
-    SET status = ?, transcription = ?, processedTasks = ?, updatedAt = ?
-    WHERE taskId = ?
-  `;
+  const query = `UPDATE tasks SET status = ?, transcription = ?, processedTasks = ?, updatedAt = ? WHERE taskId = ?`;
 
   await db
     .prepare(query)
@@ -106,11 +102,7 @@ export async function updateTaskError(
 ): Promise<void> {
   const now = new Date().toISOString();
 
-  const query = `
-    UPDATE tasks
-    SET status = ?, errorMessage = ?, updatedAt = ?
-    WHERE taskId = ?
-  `;
+  const query = `UPDATE tasks SET status = ?, errorMessage = ?, updatedAt = ? WHERE taskId = ?`;
 
   await db
     .prepare(query)

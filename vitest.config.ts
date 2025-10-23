@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
+    testTimeout: 60000, // Increase timeout for integration tests that poll for completion
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

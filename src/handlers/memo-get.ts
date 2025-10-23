@@ -77,6 +77,8 @@ export async function handleGetMemo(
     let responseData: any = {
       taskId: task.taskId,
       status: task.status,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
     };
 
     // Include results only for completed tasks
