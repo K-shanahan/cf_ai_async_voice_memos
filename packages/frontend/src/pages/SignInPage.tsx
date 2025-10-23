@@ -11,14 +11,13 @@ export function SignInPage() {
 
         <SignIn
           appearance={{
-            baseTheme: 'dark',
             elements: {
               rootBox: 'w-full',
               card: 'shadow-2xl',
             },
           }}
-          redirectUrl="/dashboard"
-          afterSignUpUrl="/dashboard"
+          redirectUrl="/"
+          afterSignUpUrl="/"
         />
       </div>
     </div>

@@ -1,39 +1,106 @@
 /**
  * Dashboard - Main page for managing voice memos
- * To be implemented with:
- * - RecordButton component
- * - MemoList component
- * - MemoDetail view
+ * Features:
+ * - RecordButton component for recording
+ * - MemoList component showing all memos
+ * - MemoDetail view with transcription and extracted tasks
  */
 
+import { useState, useEffect } from 'react'
+import { useUser } from '@clerk/clerk-react'
+import { RecordButton } from '../components/RecordButton'
+import { MemoList } from '../components/MemoList'
+import { MemoDetail } from '../components/MemoDetail'
+
 export function Dashboard() {
+  const { isLoaded } = useUser()
+  const [selectedMemoId, setSelectedMemoId] = useState<string | null>(null)
+  const [uploadInProgress, setUploadInProgress] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // Show toast notification
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [toastMessage])
+
+  if (!isLoaded) {
+    return (
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <p className="text-slate-300">Loading...</p>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="text-center">
-        <h2 className="text-3xl font-bold text-white mb-2">Dashboard</h2>
-        <p className="text-slate-300 mb-8">
-          The dashboard UI will be implemented here with recording, memos list, and memo details
-        </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column: Recording + List */}
+        <div className="lg:col-span-1 space-y-8">
+          {/* Record Section */}
+          <section className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+            <h2 className="text-xl font-bold text-white mb-4">Record New Memo</h2>
+            <RecordButton
+              onUploadStart={() => setUploadInProgress(true)}
+              onUploadSuccess={(taskId) => {
+                setUploadInProgress(false)
+                setSelectedMemoId(taskId)
+                setToastMessage('✅ Memo uploaded! Starting to process...')
+              }}
+              onError={(error) => {
+                setUploadInProgress(false)
+                setToastMessage(`❌ ${error}`)
+              }}
+            />
+          </section>
 
-        <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-8 text-slate-300">
-          <p className="mb-4">Frontend implementation in progress...</p>
-          <p className="text-sm">
-            Next steps:
-            <ul className="mt-4 space-y-2 text-left inline-block">
-              <li>✓ Create project structure</li>
-              <li>✓ Setup React with TypeScript</li>
-              <li>✓ Setup Clerk authentication</li>
-              <li>✓ Setup TanStack Query</li>
-              <li>○ Create API client integration</li>
-              <li>○ Build record button component</li>
-              <li>○ Build memo list component</li>
-              <li>○ Build memo detail view</li>
-              <li>○ Integrate with backend API</li>
-              <li>○ Deploy to Cloudflare Pages</li>
-            </ul>
-          </p>
+          {/* Memos List Section */}
+          <section className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">Your Memos</h2>
+            </div>
+            <MemoList
+              isLoading={uploadInProgress}
+              onMemoClick={(taskId) => setSelectedMemoId(taskId)}
+            />
+          </section>
+        </div>
+
+        {/* Right Column: Detail View */}
+        <div className="lg:col-span-2">
+          {selectedMemoId ? (
+            <section className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+              <MemoDetail
+                taskId={selectedMemoId}
+                onClose={() => setSelectedMemoId(null)}
+                onDelete={() => {
+                  setSelectedMemoId(null)
+                  setToastMessage('✅ Memo deleted')
+                }}
+              />
+            </section>
+          ) : (
+            <section className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 text-center py-12">
+              <p className="text-2xl mb-2">👈</p>
+              <p className="text-slate-300 font-semibold mb-2">Select a memo to view details</p>
+              <p className="text-slate-400 text-sm">
+                Record a new memo or click on an existing one to see the transcription and extracted tasks
+              </p>
+            </section>
+          )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-4 right-4 p-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 shadow-lg max-w-xs">
+          {toastMessage}
+        </div>
+      )}
     </main>
   )
 }

@@ -26,7 +26,7 @@ const skipWorkflowTests = !process.env.CI;
 
 const API_URL = 'http://localhost:8787/api/v1/memo';
 const TEST_USER_ID = 'integration-test-user';
-const REAL_AUDIO_FILE = join(__dirname, '../../..', 'test.webm');
+const REAL_AUDIO_FILE = join(__dirname, 'fixtures/test.webm');
 
 /**
  * Helper: Read real audio file from disk.

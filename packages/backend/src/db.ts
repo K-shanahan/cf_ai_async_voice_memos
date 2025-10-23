@@ -124,3 +124,59 @@ export async function getUserTasks(db: D1Database, userId: string): Promise<Task
 
   return results.results || [];
 }
+
+/**
+ * Get paginated tasks for a user with limit and offset
+ */
+export async function getUserTasksPaginated(
+  db: D1Database,
+  userId: string,
+  limit: number = 100,
+  offset: number = 0
+): Promise<{ tasks: Task[]; total: number }> {
+  // Validate pagination params
+  const validLimit = Math.min(Math.max(1, limit), 100); // 1-100
+  const validOffset = Math.max(0, offset);
+
+  // Get paginated results
+  const query = `
+    SELECT * FROM tasks
+    WHERE userId = ?
+    ORDER BY createdAt DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const results = await db
+    .prepare(query)
+    .bind(userId, validLimit, validOffset)
+    .all<Task>();
+
+  // Get total count
+  const countQuery = `SELECT COUNT(*) as count FROM tasks WHERE userId = ?`;
+  const countResult = await db.prepare(countQuery).bind(userId).first<{ count: number }>();
+  const total = countResult?.count || 0;
+
+  return {
+    tasks: results.results || [],
+    total,
+  };
+}
+
+/**
+ * Delete a task by ID and user ID (security: must verify user owns task)
+ * Returns the task that was deleted (for cascading deletes like R2 cleanup)
+ */
+export async function deleteTask(db: D1Database, taskId: string, userId: string): Promise<Task | null> {
+  // First, get the task to verify user owns it and get r2Key for cleanup
+  const task = await getTask(db, taskId, userId);
+
+  if (!task) {
+    return null;
+  }
+
+  // Delete the task
+  const query = `DELETE FROM tasks WHERE taskId = ? AND userId = ?`;
+  await db.prepare(query).bind(taskId, userId).run();
+
+  return task;
+}
