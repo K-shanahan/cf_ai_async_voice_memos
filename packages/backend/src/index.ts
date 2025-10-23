@@ -15,6 +15,7 @@ export interface Env {
   AI: Ai;
   VOICE_MEMO_QUEUE: Queue;
   ENVIRONMENT: string;
+  ALLOWED_ORIGIN?: string;
 }
 
 export interface WorkerContext {
@@ -59,7 +60,7 @@ export default {
     const method = request.method;
 
     // Handle CORS preflight requests
-    const corsPreflightResponse = handleCORSPreflight(request);
+    const corsPreflightResponse = handleCORSPreflight(request, env.ALLOWED_ORIGIN);
     if (corsPreflightResponse) {
       return corsPreflightResponse;
     }
@@ -82,7 +83,7 @@ export default {
             headers: { 'Content-Type': 'application/json' },
           }
         );
-        return addCORSHeaders(response, request);
+        return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
       }
       console.error('[Auth] Unexpected error:', error);
       throw error;
@@ -99,36 +100,36 @@ export default {
     // Route: POST /api/v1/memo
     if (method === 'POST' && path === '/api/v1/memo') {
       const response = await handlePostMemo(request, context);
-      return addCORSHeaders(response, request);
+      return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
     }
 
     // Route: GET /api/v1/memos (list all memos with pagination)
     if (method === 'GET' && path === '/api/v1/memos') {
       const response = await handleGetMemos(request, context);
-      return addCORSHeaders(response, request);
+      return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
     }
 
     // Route: GET /api/v1/memo/:taskId
     if (method === 'GET' && path.match(/^\/api\/v1\/memo\/[a-f0-9\-]+$/) && !path.includes('/audio/')) {
       const response = await handleGetMemo(request, context);
-      return addCORSHeaders(response, request);
+      return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
     }
 
     // Route: GET /api/v1/memo/audio/:taskId
     if (method === 'GET' && path.match(/^\/api\/v1\/memo\/audio\/[a-f0-9\-]+$/)) {
       const response = await handleGetAudio(request, context);
-      return addCORSHeaders(response, request);
+      return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
     }
 
     // Route: DELETE /api/v1/memo/:taskId
     if (method === 'DELETE' && path.match(/^\/api\/v1\/memo\/[a-f0-9\-]+$/)) {
       const response = await handleDeleteMemo(request, context);
-      return addCORSHeaders(response, request);
+      return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
     }
 
     // 404
     const notFoundResponse = new Response('Not Found', { status: 404 });
-    return addCORSHeaders(notFoundResponse, request);
+    return addCORSHeaders(notFoundResponse, request, env.ALLOWED_ORIGIN);
   },
 
   queue: async (batch: MessageBatch<any>, env: Env): Promise<void> => {

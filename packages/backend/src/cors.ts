@@ -4,41 +4,54 @@
  */
 
 /**
- * Get allowed origins based on environment
+ * Get allowed origins based on environment variables
  */
-function getAllowedOrigins(): string[] {
-  // In development, allow localhost
-  // In production, only allow the actual frontend domain
-  return [
+function getAllowedOrigins(allowedOriginEnv?: string): string[] {
+  const origins = [
+    // Development
     'http://localhost:5173', // Vite dev server
     'http://localhost:3000', // Alternative dev port
     'http://127.0.0.1:5173',
     'http://127.0.0.1:3000',
   ];
+
+  // Add production origin from environment variable if set
+  if (allowedOriginEnv) {
+    origins.push(allowedOriginEnv);
+  }
+
+  return origins;
 }
 
 /**
  * Check if origin is allowed
  */
-function isOriginAllowed(origin: string | null): boolean {
+function isOriginAllowed(origin: string | null, allowedOriginEnv?: string): boolean {
   if (!origin) return false;
-  return getAllowedOrigins().includes(origin);
+  return getAllowedOrigins(allowedOriginEnv).includes(origin);
 }
 
 /**
  * Handle CORS preflight requests (OPTIONS)
  */
-export function handleCORSPreflight(request: Request): Response | null {
+export function handleCORSPreflight(request: Request, allowedOriginEnv?: string): Response | null {
   if (request.method !== 'OPTIONS') {
     return null;
   }
 
   const origin = request.headers.get('Origin');
+  const allowedOrigins = getAllowedOrigins(allowedOriginEnv);
+  const isAllowed = isOriginAllowed(origin, allowedOriginEnv);
+
+  console.log('[CORS] Preflight request');
+  console.log('[CORS] Origin:', origin);
+  console.log('[CORS] Allowed origins:', allowedOrigins);
+  console.log('[CORS] Is allowed:', isAllowed);
 
   return new Response(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': isOriginAllowed(origin) ? origin! : '',
+      'Access-Control-Allow-Origin': isAllowed ? origin! : '',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400', // 24 hours
@@ -49,9 +62,15 @@ export function handleCORSPreflight(request: Request): Response | null {
 /**
  * Add CORS headers to response
  */
-export function addCORSHeaders(response: Response, request: Request): Response {
+export function addCORSHeaders(response: Response, request: Request, allowedOriginEnv?: string): Response {
   const origin = request.headers.get('Origin');
-  const allowedOrigin = isOriginAllowed(origin) ? origin : '';
+  const allowedOrigins = getAllowedOrigins(allowedOriginEnv);
+  const allowedOrigin = isOriginAllowed(origin, allowedOriginEnv) ? origin : '';
+
+  console.log('[CORS] Response headers');
+  console.log('[CORS] Origin:', origin);
+  console.log('[CORS] Allowed origins:', allowedOrigins);
+  console.log('[CORS] Setting Allow-Origin to:', allowedOrigin || '(empty)');
 
   // Create a new response with CORS headers
   const newResponse = new Response(response.body, response);

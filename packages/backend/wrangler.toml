@@ -3,14 +3,8 @@ main = "src/index.ts"
 account_id = "cf5e8c54ff4c0a3c69b9920fd54e9a73"
 compatibility_date = "2024-10-22"
 
-# Default local D1 Database binding for development
-[[d1_databases]]
-binding = "DB"
-database_name = "task_manager"
-database_id = "local-dev"
-
 [env.production]
-vars = { ENVIRONMENT = "production" }
+vars = { ENVIRONMENT = "production", ALLOWED_ORIGIN = "https://master.voice-memo-frontend.pages.dev" }
 
 # D1 Database
 [[env.production.d1_databases]]
