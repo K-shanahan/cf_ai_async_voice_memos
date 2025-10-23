@@ -278,18 +278,6 @@ describe('POST /api/v1/memo - Voice Memo Upload Handler', () => {
       expect(response.status).toBe(202);
     });
 
-    it('Supports different audio MIME types (wav)', async () => {
-      const request = createAudioRequest(
-        Buffer.from('wav data'),
-        'recording.wav',
-        'audio/wav'
-      );
-
-      const response = await handlePostMemo(request, mockContext);
-
-      expect(response.status).toBe(202);
-    });
-
     it('Accepts file at maximum size boundary (50MB)', async () => {
       const maxBuffer = Buffer.alloc(50 * 1024 * 1024); // Exactly 50MB
       const request = createAudioRequest(maxBuffer, 'large.webm');

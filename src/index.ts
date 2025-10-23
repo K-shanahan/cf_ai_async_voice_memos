@@ -2,12 +2,14 @@ import { handlePostMemo } from './handlers/memo';
 import { handleGetMemo } from './handlers/memo-get';
 import { handleGetAudio } from './handlers/memo-audio';
 import { AudioProcessingWorkflow } from './workflow-handler';
+import { handleQueueConsumer } from './queue-consumer';
 
 export interface Env {
   DB: D1Database;
   R2_BUCKET: R2Bucket;
   AUDIO_PROCESSING_WORKFLOW: Workflow;
   AI: Ai;
+  VOICE_MEMO_QUEUE: Queue;
   ENVIRONMENT: string;
 }
 
@@ -19,7 +21,7 @@ export interface WorkerContext {
 }
 
 /**
- * Main Worker fetch handler
+ * Main Worker fetch handler and queue consumer
  */
 export default {
   fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
@@ -53,7 +55,11 @@ export default {
     // 404
     return new Response('Not Found', { status: 404 });
   },
-};
+
+  queue: async (batch: MessageBatch<any>, env: Env): Promise<void> => {
+    await handleQueueConsumer(batch, env);
+  },
+} as ExportedHandler<Env>;
 
 /**
  * Export the workflow class for Cloudflare Workflows

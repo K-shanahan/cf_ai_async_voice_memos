@@ -1,32 +1,62 @@
 name = "voice-memo-task-manager"
 main = "src/index.ts"
+account_id = "cf5e8c54ff4c0a3c69b9920fd54e9a73"
 compatibility_date = "2024-10-22"
-
-[env.development]
-vars = { ENVIRONMENT = "development" }
 
 [env.production]
 vars = { ENVIRONMENT = "production" }
 
-# D1 Database binding
-[[d1_databases]]
+# D1 Database
+[[env.production.d1_databases]]
 binding = "DB"
 database_name = "task_manager"
-database_id = "local-dev"
+database_id = "6102d562-7162-423d-be9e-47f29fe2f705"
 
-# R2 bucket binding
-[[r2_buckets]]
+# R2 Bucket
+[[env.production.r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "voice-memos"
-jurisdiction = "eu"
-preview_bucket_name = "voice-memos-preview"
 
-# Workflow for async audio processing
-[[workflows]]
+# Workflow
+[[env.production.workflows]]
 name = "audio-processing"
 binding = "AUDIO_PROCESSING_WORKFLOW"
 class_name = "AudioProcessingWorkflow"
 
-# Cloudflare Workers AI binding
-[ai]
+# AI
+[env.production.ai]
+binding = "AI"
+
+# Queue for R2 event notifications
+[[env.production.queues.producers]]
+binding = "VOICE_MEMO_QUEUE"
+queue = "voice-memo-events"
+
+[[env.production.queues.consumers]]
+queue = "voice-memo-events"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "voice-memo-events-dlq"
+
+# Development environment (optional, for local testing)
+[env.development]
+vars = { ENVIRONMENT = "development" }
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "task_manager"
+database_id = "local-dev"
+
+[[env.development.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "voice-memos-preview"
+jurisdiction = "eu"
+
+[[env.development.workflows]]
+name = "audio-processing"
+binding = "AUDIO_PROCESSING_WORKFLOW"
+class_name = "AudioProcessingWorkflow"
+
+[env.development.ai]
 binding = "AI"

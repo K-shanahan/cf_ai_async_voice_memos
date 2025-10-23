@@ -265,33 +265,6 @@ describe('POST /api/v1/memo - Integration Tests (Real API)', () => {
       expect(task.status).toBe('pending');
     });
 
-    it('Processes audio files with wav format', async () => {
-      // Verifies that wav format audio files are accepted and can be processed.
-      const formData = new FormData();
-      const audioData = new Uint8Array(getTestAudioFile());
-      formData.append('audio', new Blob([audioData], { type: 'audio/wav' }), 'recording.wav');
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'X-User-Id': TEST_USER_ID },
-        body: formData,
-      });
-
-      expect(response.status).toBe(202);
-      const uploadData = await response.json() as any;
-      const taskId = uploadData.taskId;
-
-      // Verify the task was created
-      const getResponse = await fetch(`http://localhost:8787/api/v1/memo/${taskId}`, {
-        method: 'GET',
-        headers: { 'X-User-Id': TEST_USER_ID },
-      });
-
-      expect(getResponse.status).toBe(200);
-      const task = await getResponse.json() as any;
-      expect(task.status).toBe('pending');
-    });
-
     it('GET endpoint rejects access to non-existent task', async () => {
       const fakeTaskId = '00000000-0000-4000-8000-000000000000';
 

@@ -12,14 +12,12 @@ interface WorkerContext {
   };
 }
 
-const ALLOWED_MIME_TYPES = [
-  'audio/webm',
-  'audio/mpeg',
-  'audio/wav',
-  'audio/mp4',
-  'audio/flac',
-  'audio/ogg',
-];
+/**
+ * Supported audio formats:
+ * - WebM: Modern, efficient format with best compression (preferred for web)
+ * - MP3: Universal compatibility with older clients and native apps
+ */
+const ALLOWED_MIME_TYPES = ['audio/webm', 'audio/mpeg'];
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 /**
@@ -131,7 +129,7 @@ export async function handlePostMemo(
       return new Response(
         JSON.stringify({
           error: 'Unsupported Media Type',
-          message: `Audio file type '${audio.type}' is not supported. Supported types: ${ALLOWED_MIME_TYPES.join(', ')}`,
+          message: `Audio file type '${audio.type}' is not supported. Supported formats: WebM (audio/webm) and MP3 (audio/mpeg)`,
         }),
         {
           status: 415,
@@ -184,8 +182,24 @@ export async function handlePostMemo(
       throw dbError;
     }
 
-    // 12. R2 event will automatically trigger the workflow when the file is uploaded
-    // No explicit workflow trigger needed - Cloudflare Workflows will handle it
+    // 12. Send message to queue to trigger workflow asynchronously
+    try {
+      const queueMessage = {
+        bucket: 'voice-memos',
+        key: uploadedR2Key,
+        eventName: 'object-created',
+        eventTimestamp: new Date().toISOString(),
+        taskId,
+        userId,
+      };
+
+      await context.env.VOICE_MEMO_QUEUE.send(queueMessage);
+      console.log(`✅ Queued workflow trigger for task ${taskId}`);
+    } catch (queueError) {
+      console.error('Failed to queue workflow trigger:', queueError);
+      // Don't fail the upload if queueing fails - the file is already in R2 and DB
+      // The queue might retry or we can manually trigger the workflow later
+    }
 
     // 13. Return 202 Accepted response
     return new Response(
