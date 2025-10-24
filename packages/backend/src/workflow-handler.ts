@@ -76,6 +76,7 @@ export async function handleAudioProcessingWorkflow(
         AI: env.AI,
         VOICE_MEMO_QUEUE: env.VOICE_MEMO_QUEUE,
         ANALYTICS: env.ANALYTICS,
+        TASK_STATUS_DO: env.TASK_STATUS_DO,
         ENVIRONMENT: env.ENVIRONMENT,
       },
       data: {

@@ -83,7 +83,9 @@ export function useWebSocketMemo(taskId: string) {
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
+        console.log('[WebSocket] Raw message received:', event.data)
         const data = JSON.parse(event.data) as unknown
+        console.log('[WebSocket] Parsed data:', data)
 
         // Type guard to check if it's a history message
         if (
@@ -94,10 +96,12 @@ export function useWebSocketMemo(taskId: string) {
         ) {
           // Process history message
           const historyMsg = data as HistoryMessage
+          console.log('[WebSocket] Processing history message with', historyMsg.updates.length, 'updates')
           processStatusUpdates(historyMsg.updates)
         } else {
           // Single status update
           const update = data as StatusUpdate
+          console.log('[WebSocket] Processing single update:', update)
           processStatusUpdate(update)
         }
       } catch (error) {
@@ -148,6 +152,7 @@ export function useWebSocketMemo(taskId: string) {
 
   // Process history of updates
   const processStatusUpdates = useCallback((updates: StatusUpdate[]) => {
+    console.log('[WebSocket] Processing history of', updates.length, 'updates')
     // Reset stage progress
     const newProgress: StageProgress = {
       transcribe: 'pending',
@@ -160,6 +165,7 @@ export function useWebSocketMemo(taskId: string) {
     const newErrors: WorkflowError[] = []
 
     for (const update of updates) {
+      console.log('[WebSocket] History update:', update.stage, update.status)
       // Update stage progress (only if it's a tracked stage, not 'workflow')
       if (
         update.stage === 'transcribe' ||
@@ -179,6 +185,7 @@ export function useWebSocketMemo(taskId: string) {
       }
     }
 
+    console.log('[WebSocket] Final progress from history:', newProgress)
     setStageProgress(newProgress)
     setErrors(newErrors)
   }, [])
@@ -219,12 +226,14 @@ export function useWebSocketMemo(taskId: string) {
   // Connect to WebSocket
   const connectWebSocket = useCallback(async () => {
     try {
+      console.log('[WebSocket] Attempting connection for task:', taskId)
       const token = await getToken()
       if (!token) {
         console.error('[WebSocket] No auth token available')
         return
       }
 
+      console.log('[WebSocket] Token obtained, length:', token.length)
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const wsUrl = `${wsProtocol}//${new URL(API_BASE_URL).host}/ws/task/${taskId}?token=${encodeURIComponent(token)}`
 
@@ -232,7 +241,7 @@ export function useWebSocketMemo(taskId: string) {
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
-        console.log('[WebSocket] Connected')
+        console.log('[WebSocket] ✓ Connected successfully')
         setConnectionStatus('connected')
         reconnectAttemptsRef.current = 0
         setUseFallbackPolling(false)
@@ -241,18 +250,19 @@ export function useWebSocketMemo(taskId: string) {
       ws.onmessage = handleMessage
 
       ws.onclose = () => {
-        console.warn('[WebSocket] Disconnected')
+        console.warn('[WebSocket] ✗ Disconnected')
         setConnectionStatus('disconnected')
         wsRef.current = null
 
         // Attempt reconnect if not already using fallback polling
         if (!useFallbackPolling) {
+          console.log('[WebSocket] Attempting reconnect...')
           attemptReconnect()
         }
       }
 
       ws.onerror = (error) => {
-        console.error('[WebSocket] Error:', error)
+        console.error('[WebSocket] ✗ Error:', error)
       }
 
       wsRef.current = ws

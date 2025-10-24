@@ -5,7 +5,7 @@ import { handleDeleteMemo } from './handlers/memo-delete';
 import { handleGetAudio } from './handlers/memo-audio';
 import { AudioProcessingWorkflow } from './workflow-handler';
 import { handleQueueConsumer } from './queue-consumer';
-import { extractUserFromRequest, extractUserIdLegacy, AuthError } from './auth';
+import { extractUserFromRequest, extractUserIdLegacy, AuthError, validateClerkToken } from './auth';
 import { handleCORSPreflight, addCORSHeaders } from './cors';
 import { TaskStatusDO } from './durable-objects/task-status-do';
 import { getTask } from './db';
@@ -57,18 +57,57 @@ function extractUserIdFromRequest(request: Request): string {
 /**
  * Handle WebSocket upgrade for real-time task status updates
  * Verifies user authentication and task ownership before connecting to Durable Object
+ * Extracts token from query parameter since WebSocket handshakes can't use Authorization header
  */
 async function handleWebSocketUpgrade(
   request: Request,
-  context: WorkerContext
+  env: Env
 ): Promise<Response> {
   try {
     const url = new URL(request.url);
     const pathParts = url.pathname.split('/');
     const taskId = pathParts[pathParts.length - 1];
 
+    // Extract token from query parameter
+    const token = url.searchParams.get('token');
+    if (!token) {
+      console.warn('[WebSocket] Missing token in query parameter');
+      return new Response(
+        JSON.stringify({
+          error: 'Unauthorized',
+          message: 'Missing authentication token'
+        }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Validate token and extract userId
+    let userId: string;
+    try {
+      userId = validateClerkToken(token);
+      console.log('[Auth] ✓ WebSocket user authenticated:', userId);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        console.warn('[Auth] ✗ WebSocket authentication failed:', error.message);
+        return new Response(
+          JSON.stringify({
+            error: 'Unauthorized',
+            message: error.message
+          }),
+          {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      throw error;
+    }
+
     // Verify task ownership
-    const task = await getTask(context.env.DB, taskId, context.data.userId);
+    const task = await getTask(env.DB, taskId, userId);
     if (!task) {
       return new Response(
         JSON.stringify({
@@ -83,8 +122,8 @@ async function handleWebSocketUpgrade(
     }
 
     // Forward WebSocket request to Durable Object
-    const doId = context.env.TASK_STATUS_DO.idFromName(taskId);
-    const doStub = context.env.TASK_STATUS_DO.get(doId);
+    const doId = env.TASK_STATUS_DO.idFromName(taskId);
+    const doStub = env.TASK_STATUS_DO.get(doId);
     return doStub.fetch(request);
   } catch (error) {
     console.error('[WebSocket] Error during upgrade:', error);
@@ -116,7 +155,13 @@ export default {
       return corsPreflightResponse;
     }
 
-    // Authenticate user
+    // Route: GET /ws/task/:taskId (WebSocket for real-time status updates)
+    // Handle WebSocket separately since token is passed as query parameter, not header
+    if (method === 'GET' && path.match(/^\/ws\/task\/[a-f0-9\-]+$/)) {
+      return handleWebSocketUpgrade(request, env);
+    }
+
+    // Authenticate user for all other routes
     let userId: string | undefined;
     try {
       userId = extractUserIdFromRequest(request);
@@ -176,11 +221,6 @@ export default {
     if (method === 'DELETE' && path.match(/^\/api\/v1\/memo\/[a-f0-9\-]+$/)) {
       const response = await handleDeleteMemo(request, context);
       return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
-    }
-
-    // Route: GET /ws/task/:taskId (WebSocket for real-time status updates)
-    if (method === 'GET' && path.match(/^\/ws\/task\/[a-f0-9\-]+$/)) {
-      return handleWebSocketUpgrade(request, context);
     }
 
     // 404

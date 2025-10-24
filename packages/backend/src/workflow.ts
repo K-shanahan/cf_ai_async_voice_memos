@@ -57,10 +57,14 @@ function publishWorkflowUpdate(
   update: Omit<StatusUpdate, 'taskId'>,
   env: any
 ): void {
+  const updatePayload = { ...update, taskId };
+  console.log(`[StatusUpdate] Publishing update for task ${taskId}:`, JSON.stringify(updatePayload));
+
   // Fire-and-forget: don't await this call
   const doId = env.TASK_STATUS_DO?.idFromName?.(taskId);
   if (!doId || !env.TASK_STATUS_DO?.get) {
     // If TASK_STATUS_DO is not available (e.g., in tests), silently skip
+    console.warn(`[StatusUpdate] TASK_STATUS_DO not available for task ${taskId}, skipping update`);
     return;
   }
 
@@ -71,12 +75,15 @@ function publishWorkflowUpdate(
     .fetch(
       new Request('https://do/publish', {
         method: 'POST',
-        body: JSON.stringify({ ...update, taskId })
+        body: JSON.stringify(updatePayload)
       })
     )
+    .then(() => {
+      console.log(`[StatusUpdate] ✓ Published ${update.stage} ${update.status} for task ${taskId}`);
+    })
     .catch((err) => {
       // Log errors but don't throw - status updates are non-critical
-      console.error(`[StatusUpdate] Failed to publish update for task ${taskId}:`, err);
+      console.error(`[StatusUpdate] ✗ Failed to publish update for task ${taskId}:`, err);
     });
 }
 
