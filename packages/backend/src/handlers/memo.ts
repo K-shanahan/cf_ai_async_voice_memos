@@ -221,6 +221,9 @@ export async function handlePostMemo(
     }
 
     // 13. Return 202 Accepted response
+    const uploadDuration = performance.now() - uploadStartTime;
+    console.log(`[Timing] Upload handler total: ${uploadDuration.toFixed(2)}ms`);
+
     return new Response(
       JSON.stringify({
         taskId,

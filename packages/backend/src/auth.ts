@@ -54,12 +54,12 @@ function decodeJWT(token: string): JWTPayload {
         .padEnd(payload.length + (4 - (payload.length % 4)) % 4, '=')
     );
     const parsed = JSON.parse(decoded) as JWTPayload;
-    console.log('[Auth] Token payload:', {
-      sub: parsed.sub,
-      iss: parsed.iss,
-      exp: parsed.exp,
-      iat: parsed.iat,
-    });
+    // console.log('[Auth] Token payload:', {
+    //   sub: parsed.sub,
+    //   iss: parsed.iss,
+    //   exp: parsed.exp,
+    //   iat: parsed.iat,
+    // });
     return parsed;
   } catch (error) {
     console.error('[Auth] Failed to decode token:', error);
@@ -83,13 +83,13 @@ function validateExpiration(payload: JWTPayload): void {
   // Allow 60 second clock skew (increased for development)
   const clockSkew = 60;
 
-  console.log('[Auth] Token expiration check:', {
-    now,
-    expirationTime,
-    secondsUntilExpiry,
-    clockSkew,
-    isExpired: secondsUntilExpiry < -clockSkew,
-  });
+  // console.log('[Auth] Token expiration check:', {
+  //   now,
+  //   expirationTime,
+  //   secondsUntilExpiry,
+  //   clockSkew,
+  //   isExpired: secondsUntilExpiry < -clockSkew,
+  // });
 
   if (now > expirationTime + clockSkew) {
     throw new AuthError(`Token expired (${-secondsUntilExpiry} seconds ago)`, 401);

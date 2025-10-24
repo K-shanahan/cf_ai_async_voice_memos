@@ -64,8 +64,10 @@ export async function extractTasks(
 
   try {
     console.log(`Extracting tasks from transcription (length: ${transcription.length})`);
+    const totalStartTime = performance.now();
 
     // Call Llama 3 model via Workers AI
+    const aiCallStartTime = performance.now();
     const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
       prompt: `${TASK_EXTRACTION_SYSTEM_PROMPT}
 
@@ -75,6 +77,8 @@ User text to extract tasks from:
 Respond with only valid JSON.`,
       max_tokens: 2048,
     }) as { response: string };
+    const aiCallTime = performance.now() - aiCallStartTime;
+    console.log(`[Timing] AI.run() (inference + network): ${aiCallTime.toFixed(2)}ms`);
 
     if (!response || !response.response) {
       throw new Error('Llama 3 returned empty response');
@@ -83,6 +87,7 @@ Respond with only valid JSON.`,
     console.log(`Raw Llama response: ${response.response}`);
 
     // Parse the JSON response
+    const parseStartTime = performance.now();
     let tasksData: { tasks: ProcessedTask[] };
     try {
       // Extract JSON from response (Llama might include extra text)
@@ -95,6 +100,8 @@ Respond with only valid JSON.`,
     } catch (parseError) {
       throw new Error(`Failed to parse Llama response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
     }
+    const parseTime = performance.now() - parseStartTime;
+    console.log(`[Timing] JSON parsing & validation: ${parseTime.toFixed(2)}ms`);
 
     // Validate response structure
     if (!tasksData.tasks || !Array.isArray(tasksData.tasks)) {
@@ -118,7 +125,8 @@ Respond with only valid JSON.`,
       }
     }
 
-    console.log(`Extracted ${tasksData.tasks.length} tasks from transcription`);
+    const totalTime = performance.now() - totalStartTime;
+    console.log(`[Timing] Extraction total: ${totalTime.toFixed(2)}ms, extracted ${tasksData.tasks.length} tasks`);
     return tasksData.tasks;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

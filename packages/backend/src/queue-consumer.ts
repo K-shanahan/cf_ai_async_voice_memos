@@ -37,10 +37,15 @@ export async function handleQueueConsumer(
   batch: MessageBatch<QueueMessage>,
   env: Env
 ): Promise<void> {
+  console.log(`[Timing] Queue batch received with ${batch.messages.length} message(s)`);
+
   for (const message of batch.messages) {
     const queueProcessStartTime = performance.now();
     try {
       const queueMessage = message.body as QueueMessage;
+      const messageCreatedTime = new Date(queueMessage.eventTimestamp).getTime();
+      const queueWaitTime = Date.now() - messageCreatedTime;
+      console.log(`[Timing] Queue wait time (message created → batch received): ${queueWaitTime.toFixed(0)}ms`);
 
       console.log(`Processing queue message for task: ${queueMessage.taskId}`);
 

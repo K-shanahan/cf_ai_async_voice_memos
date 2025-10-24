@@ -27,8 +27,10 @@ export async function generateTaskContent(
 
   try {
     console.log(`Generating content with prompt: "${prompt}"`);
+    const totalStartTime = performance.now();
 
     // Call Llama 3 model via Workers AI
+    const aiCallStartTime = performance.now();
     const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
       prompt: `You are a helpful assistant that generates content based on user requests.
 
@@ -37,6 +39,8 @@ User request: ${prompt}
 Generate relevant, useful, and professional content to help the user with their request.`,
       max_tokens: 1024,
     }) as { response: string };
+    const aiCallTime = performance.now() - aiCallStartTime;
+    console.log(`[Timing] AI.run() (inference + network): ${aiCallTime.toFixed(2)}ms`);
 
     if (!response || !response.response) {
       throw new Error('Llama 3 returned empty response');
@@ -48,7 +52,8 @@ Generate relevant, useful, and professional content to help the user with their 
       throw new Error('Generated content is empty');
     }
 
-    console.log(`Generated content length: ${generatedContent.length}`);
+    const totalTime = performance.now() - totalStartTime;
+    console.log(`[Timing] Content generation total: ${totalTime.toFixed(2)}ms, content length: ${generatedContent.length}`);
     return generatedContent;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

@@ -28,8 +28,9 @@ class_name = "AudioProcessingWorkflow"
 binding = "AI"
 
 # Analytics Engine
-[env.production.analytics_engine_datasets]
+[[env.production.analytics_engine_datasets]]
 binding = "ANALYTICS"
+dataset = "voice_memo_pipeline"
 
 # Queue for R2 event notifications
 [[env.production.queues.producers]]
@@ -38,8 +39,8 @@ queue = "voice-memo-events"
 
 [[env.production.queues.consumers]]
 queue = "voice-memo-events"
-max_batch_size = 10
-max_batch_timeout = 30
+max_batch_size = 1
+max_batch_timeout = 1
 max_retries = 3
 dead_letter_queue = "voice-memo-events-dlq"
 
@@ -66,5 +67,5 @@ class_name = "AudioProcessingWorkflow"
 binding = "AI"
 
 # Analytics Engine
-[env.development.analytics_engine_datasets]
+[[env.development.analytics_engine_datasets]]
 binding = "ANALYTICS"

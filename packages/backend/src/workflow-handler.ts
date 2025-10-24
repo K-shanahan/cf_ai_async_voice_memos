@@ -41,6 +41,7 @@ export async function handleAudioProcessingWorkflow(
   r2Event: R2ObjectCreatedEvent,
   env: Env
 ): Promise<void> {
+  const handlerStartTime = performance.now();
   try {
     // Extract userId and taskId from the R2 object key
     const parsed = parseR2ObjectKey(r2Event.key);
@@ -52,6 +53,9 @@ export async function handleAudioProcessingWorkflow(
 
     const { userId, taskId } = parsed;
     const r2Key = r2Event.key;
+    const eventTimestamp = new Date(r2Event.eventTimestamp).getTime();
+    const timeSinceEvent = Date.now() - eventTimestamp;
+    console.log(`[Timing] Time since R2 event: ${timeSinceEvent.toFixed(0)}ms`);
 
     console.log(`Workflow triggered for R2 object: ${r2Key}`);
     console.log(`Processing task ${taskId} for user ${userId}`);
@@ -70,6 +74,8 @@ export async function handleAudioProcessingWorkflow(
         R2_BUCKET: env.R2_BUCKET,
         AUDIO_PROCESSING_WORKFLOW: env.AUDIO_PROCESSING_WORKFLOW,
         AI: env.AI,
+        VOICE_MEMO_QUEUE: env.VOICE_MEMO_QUEUE,
+        ANALYTICS: env.ANALYTICS,
         ENVIRONMENT: env.ENVIRONMENT,
       },
       data: {

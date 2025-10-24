@@ -43,10 +43,10 @@ export function handleCORSPreflight(request: Request, allowedOriginEnv?: string)
   const allowedOrigins = getAllowedOrigins(allowedOriginEnv);
   const isAllowed = isOriginAllowed(origin, allowedOriginEnv);
 
-  console.log('[CORS] Preflight request');
-  console.log('[CORS] Origin:', origin);
-  console.log('[CORS] Allowed origins:', allowedOrigins);
-  console.log('[CORS] Is allowed:', isAllowed);
+  // console.log('[CORS] Preflight request');
+  // console.log('[CORS] Origin:', origin);
+  // console.log('[CORS] Allowed origins:', allowedOrigins);
+  // console.log('[CORS] Is allowed:', isAllowed);
 
   return new Response(null, {
     status: 204,
@@ -67,10 +67,10 @@ export function addCORSHeaders(response: Response, request: Request, allowedOrig
   const allowedOrigins = getAllowedOrigins(allowedOriginEnv);
   const allowedOrigin = isOriginAllowed(origin, allowedOriginEnv) ? origin : '';
 
-  console.log('[CORS] Response headers');
-  console.log('[CORS] Origin:', origin);
-  console.log('[CORS] Allowed origins:', allowedOrigins);
-  console.log('[CORS] Setting Allow-Origin to:', allowedOrigin || '(empty)');
+  // console.log('[CORS] Response headers');
+  // console.log('[CORS] Origin:', origin);
+  // console.log('[CORS] Allowed origins:', allowedOrigins);
+  // console.log('[CORS] Setting Allow-Origin to:', allowedOrigin || '(empty)');
 
   // Create a new response with CORS headers
   const newResponse = new Response(response.body, response);

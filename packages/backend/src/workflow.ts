@@ -49,6 +49,8 @@ export async function processAudioWorkflow(
   context: MockWorkerContext
 ): Promise<ProcessingResult> {
   const { taskId, userId, r2Key } = input;
+  const workflowStartTime = performance.now();
+  console.log(`[Timing] Workflow started for task ${taskId}`);
 
   try {
     // Step 1: Get transcription (either provided or retrieve audio and transcribe)
@@ -56,7 +58,11 @@ export async function processAudioWorkflow(
     if (!transcription) {
       const transcribeStartTime = performance.now();
       try {
+        const r2RetrieveStartTime = performance.now();
         const audioBuffer = await retrieveAudioFromR2(context, r2Key);
+        const r2RetrieveDuration = performance.now() - r2RetrieveStartTime;
+        console.log(`[Timing] R2 retrieval: ${r2RetrieveDuration.toFixed(2)}ms`);
+
         transcription = await transcribeAudio(audioBuffer, context.env);
 
         const transcribeDuration = performance.now() - transcribeStartTime;
@@ -188,6 +194,7 @@ export async function processAudioWorkflow(
       await updateTaskResults(context.env.DB, taskId, transcription, processedTasksJson);
 
       const dbUpdateDuration = performance.now() - dbUpdateStartTime;
+      console.log(`[Timing] DB update: ${dbUpdateDuration.toFixed(2)}ms`);
       await logPipelineEvent(context.env.ANALYTICS, {
         timestamp: Date.now(),
         taskId,
@@ -216,6 +223,9 @@ export async function processAudioWorkflow(
 
       throw dbError;
     }
+
+    const workflowTotalTime = performance.now() - workflowStartTime;
+    console.log(`[Timing] Workflow total: ${workflowTotalTime.toFixed(2)}ms`);
 
     return {
       status: 'completed',

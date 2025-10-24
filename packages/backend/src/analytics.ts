@@ -33,8 +33,8 @@ export async function logPipelineEvent(
 ): Promise<void> {
   try {
     analytics.writeDataPoint({
-      indexes: [event.stage, event.status],
-      blobs: [event.taskId, event.userId, JSON.stringify(event.metadata || {})],
+      indexes: [event.stage],
+      blobs: [event.taskId, event.userId, event.status, JSON.stringify(event.metadata || {})],
       doubles: [event.duration_ms, event.timestamp],
     });
   } catch (error) {

@@ -39,7 +39,7 @@ function extractUserIdFromRequest(request: Request): string {
       throw error;
     }
 
-    // Fall back to X-User-Id header for backward compatibility / testing
+    // TODO: Remove this
     const legacyUserId = extractUserIdLegacy(request);
     if (legacyUserId) {
       console.warn('Using legacy X-User-Id header. Please update to use Clerk JWT.');

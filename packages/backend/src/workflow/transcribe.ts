@@ -42,6 +42,10 @@ export async function transcribeAudio(
   }
   try {
     console.log(`Transcribing audio buffer of size ${finalBuffer.byteLength} bytes using Whisper`);
+    const totalStartTime = performance.now();
+
+    // Measure base64 encoding time
+    const encodeStartTime = performance.now();
     const uint8Array = new Uint8Array(finalBuffer);
     let binaryString = '';
     // Process in chunks to avoid stack overflow with large arrays
@@ -50,14 +54,23 @@ export async function transcribeAudio(
       binaryString += String.fromCharCode(...uint8Array.subarray(i, i + chunkSize));
     }
     const audioBase64 = btoa(binaryString);
+    const encodeTime = performance.now() - encodeStartTime;
+    console.log(`[Timing] Base64 encoding: ${encodeTime.toFixed(2)}ms`);
+
+    // Measure AI model call time
+    const aiCallStartTime = performance.now();
     const response = await env.AI.run('@cf/openai/whisper-large-v3-turbo', {
       audio: audioBase64,
     });
+    const aiCallTime = performance.now() - aiCallStartTime;
+    console.log(`[Timing] AI.run() (inference + network): ${aiCallTime.toFixed(2)}ms`);
 
     if (!response || !response.text) {
       throw new Error('Whisper returned empty transcription');
     }
-    console.log(`Transcription completed, text length: ${response.text.length}`);
+
+    const totalTime = performance.now() - totalStartTime;
+    console.log(`[Timing] Transcription total: ${totalTime.toFixed(2)}ms, text length: ${response.text.length}`);
     return response.text;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
