@@ -1,12 +1,16 @@
 /**
  * MemoDetail - Full memo view with transcription, tasks, and actions
+ * Real-time updates via WebSocket with fallback to polling
  */
 
 import { useState } from 'react'
-import { useMemoDetail } from '../hooks/useMemoApi'
+import { useWebSocketMemo } from '../hooks/useWebSocketMemo'
 import { AudioPlayer } from './AudioPlayer'
 import { DeleteConfirmation } from './DeleteConfirmation'
 import { StatusBadge } from './StatusBadge'
+import { WorkflowProgressIndicator } from './WorkflowProgressIndicator'
+import { ErrorLogPanel } from './ErrorLogPanel'
+import { ConnectionStatusBadge } from './ConnectionStatusBadge'
 import { ProcessedTask } from '../types/api'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 
@@ -17,9 +21,20 @@ interface MemoDetailProps {
 }
 
 export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
-  const { data: memo, isLoading, error } = useMemoDetail(taskId)
+  const {
+    memo,
+    isLoading,
+    error,
+    stageProgress,
+    errors,
+    clearErrors,
+    connectionStatus,
+    isUsingFallback,
+  } = useWebSocketMemo(taskId)
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showProgressDetails, setShowProgressDetails] = useState(true)
 
   if (isLoading) {
     return (
@@ -82,6 +97,45 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
           </button>
         )}
       </div>
+
+      {/* Connection Status Badge - Only visible when disconnected */}
+      {connectionStatus !== 'connected' && (
+        <ConnectionStatusBadge
+          status={connectionStatus}
+          isUsingFallback={isUsingFallback}
+        />
+      )}
+
+      {/* Workflow Progress Indicator - Show if processing */}
+      {memo.status === 'pending' && showProgressDetails && (
+        <div className="p-4 bg-slate-700/30 border border-slate-600 rounded-lg">
+          <div className="flex items-start justify-between mb-3">
+            <div></div>
+            <button
+              onClick={() => setShowProgressDetails(false)}
+              className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1 bg-slate-700 rounded"
+            >
+              Hide
+            </button>
+          </div>
+          <WorkflowProgressIndicator stageProgress={stageProgress} />
+        </div>
+      )}
+
+      {/* Show progress toggle if it was hidden */}
+      {memo.status === 'pending' && !showProgressDetails && (
+        <button
+          onClick={() => setShowProgressDetails(true)}
+          className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1 bg-slate-700/30 rounded border border-slate-600"
+        >
+          Show progress details
+        </button>
+      )}
+
+      {/* Error Log Panel - Only show if there are errors */}
+      {errors.length > 0 && (
+        <ErrorLogPanel errors={errors} onClearErrors={clearErrors} />
+      )}
 
       {/* Transcription */}
       {memo.transcription ? (
