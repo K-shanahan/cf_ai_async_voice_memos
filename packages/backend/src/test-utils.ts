@@ -10,6 +10,8 @@ export interface MockWorkerContext {
     R2_BUCKET: any;
     AUDIO_PROCESSING_WORKFLOW: any;
     AI: any;
+    VOICE_MEMO_QUEUE?: any;
+    ANALYTICS: any;
     ENVIRONMENT: string;
   };
   data: {
@@ -62,6 +64,8 @@ export function createMockContext(): MockWorkerContext {
       AI: {
         run: aiRunMock,
       } as any,
+      VOICE_MEMO_QUEUE: undefined as any,
+      ANALYTICS: undefined as any,
       ENVIRONMENT: 'development',
     },
     data: {

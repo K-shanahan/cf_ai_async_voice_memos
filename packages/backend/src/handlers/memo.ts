@@ -1,11 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
 import { createTask } from '../db';
 import { uploadAudioToR2, deleteAudioFromR2 } from '../r2';
+import { logPipelineEvent } from '../analytics';
 
 interface WorkerContext {
   env: {
     DB: D1Database;
     R2_BUCKET: R2Bucket;
+    VOICE_MEMO_QUEUE?: Queue;
+    ANALYTICS: AnalyticsEngineDataset;
   };
   data: {
     userId?: string;
@@ -29,6 +32,8 @@ export async function handlePostMemo(
   context: WorkerContext
 ): Promise<Response> {
   let uploadedR2Key: string | null = null;
+  const uploadStartTime = performance.now();
+  let taskId: string | null = null;
 
   try {
     // 1. Authenticate user
@@ -139,10 +144,10 @@ export async function handlePostMemo(
     }
 
     // 8. Generate task ID
-    const taskId = uuidv4();
+    taskId = uuidv4();
 
     // 9. Validate services are available
-    const { DB: db, R2_BUCKET: r2Bucket } = context.env;
+    const { DB: db, R2_BUCKET: r2Bucket, ANALYTICS: analytics } = context.env;
 
     if (!db || !r2Bucket) {
       return new Response(
@@ -159,6 +164,7 @@ export async function handlePostMemo(
 
     // 10. Upload to R2
     const audioBuffer = await audio.arrayBuffer();
+    const r2UploadStartTime = performance.now();
 
     uploadedR2Key = await uploadAudioToR2(
       r2Bucket,
@@ -167,6 +173,19 @@ export async function handlePostMemo(
       audioBuffer,
       audio.name || 'audio.webm'
     );
+
+    const r2UploadDuration = performance.now() - r2UploadStartTime;
+    await logPipelineEvent(analytics, {
+      timestamp: Date.now(),
+      taskId,
+      userId,
+      stage: 'upload',
+      duration_ms: r2UploadDuration,
+      status: 'completed',
+      metadata: {
+        audioSize: audio.size,
+      },
+    });
 
     // 11. Create database record
     try {
@@ -218,6 +237,25 @@ export async function handlePostMemo(
     console.error('Error in handlePostMemo:', error);
 
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+
+    // Log failed upload event
+    if (taskId && context.data.userId) {
+      try {
+        await logPipelineEvent(context.env.ANALYTICS, {
+          timestamp: Date.now(),
+          taskId,
+          userId: context.data.userId,
+          stage: 'upload',
+          duration_ms: performance.now() - uploadStartTime,
+          status: 'failed',
+          metadata: {
+            errorMessage,
+          },
+        });
+      } catch (analyticsError) {
+        console.warn('[Analytics] Failed to log error event:', analyticsError);
+      }
+    }
 
     return new Response(
       JSON.stringify({

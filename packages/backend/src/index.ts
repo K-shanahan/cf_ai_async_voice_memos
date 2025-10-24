@@ -13,7 +13,8 @@ export interface Env {
   R2_BUCKET: R2Bucket;
   AUDIO_PROCESSING_WORKFLOW: Workflow;
   AI: Ai;
-  VOICE_MEMO_QUEUE: Queue;
+  VOICE_MEMO_QUEUE?: Queue;
+  ANALYTICS: AnalyticsEngineDataset;
   ENVIRONMENT: string;
   ALLOWED_ORIGIN?: string;
 }

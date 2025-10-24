@@ -8,6 +8,7 @@ import { updateTaskResults, updateTaskError } from './db';
 import { transcribeAudio } from './workflow/transcribe';
 import { extractTasks, type ProcessedTask } from './workflow/extract';
 import { generateTaskContent } from './workflow/generate';
+import { logPipelineEvent } from './analytics';
 
 // Re-export ProcessedTask for external use
 export type { ProcessedTask };
@@ -53,21 +54,78 @@ export async function processAudioWorkflow(
     // Step 1: Get transcription (either provided or retrieve audio and transcribe)
     let transcription = input.transcription;
     if (!transcription) {
+      const transcribeStartTime = performance.now();
       try {
         const audioBuffer = await retrieveAudioFromR2(context, r2Key);
         transcription = await transcribeAudio(audioBuffer, context.env);
+
+        const transcribeDuration = performance.now() - transcribeStartTime;
+        await logPipelineEvent(context.env.ANALYTICS, {
+          timestamp: Date.now(),
+          taskId,
+          userId,
+          stage: 'transcribe',
+          duration_ms: transcribeDuration,
+          status: 'completed',
+        });
       } catch (error) {
-        throw new Error(`Failed to transcribe audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const transcribeDuration = performance.now() - transcribeStartTime;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        try {
+          await logPipelineEvent(context.env.ANALYTICS, {
+            timestamp: Date.now(),
+            taskId,
+            userId,
+            stage: 'transcribe',
+            duration_ms: transcribeDuration,
+            status: 'failed',
+            metadata: { errorMessage },
+          });
+        } catch (analyticsError) {
+          console.warn('[Analytics] Failed to log transcribe error:', analyticsError);
+        }
+
+        throw new Error(`Failed to transcribe audio: ${errorMessage}`);
       }
     }
 
     // Step 2: Extract tasks from transcription
     let processedTasks: ProcessedTask[] = input.extractedTasks || [];
     if (!input.extractedTasks) {
+      const extractStartTime = performance.now();
       try {
         processedTasks = await extractTasks(transcription, context.env);
+
+        const extractDuration = performance.now() - extractStartTime;
+        await logPipelineEvent(context.env.ANALYTICS, {
+          timestamp: Date.now(),
+          taskId,
+          userId,
+          stage: 'extract',
+          duration_ms: extractDuration,
+          status: 'completed',
+          metadata: { taskCount: processedTasks.length },
+        });
       } catch (error) {
-        throw new Error(`Failed to extract tasks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const extractDuration = performance.now() - extractStartTime;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        try {
+          await logPipelineEvent(context.env.ANALYTICS, {
+            timestamp: Date.now(),
+            taskId,
+            userId,
+            stage: 'extract',
+            duration_ms: extractDuration,
+            status: 'failed',
+            metadata: { errorMessage },
+          });
+        } catch (analyticsError) {
+          console.warn('[Analytics] Failed to log extract error:', analyticsError);
+        }
+
+        throw new Error(`Failed to extract tasks: ${errorMessage}`);
       }
     }
 
@@ -77,6 +135,7 @@ export async function processAudioWorkflow(
       let taskWithContent: ProcessedTask = { ...task };
 
       if (task.generative_task_prompt) {
+        const generateStartTime = performance.now();
         try {
           let generatedContent = input.generatedContent;
           if (!generatedContent) {
@@ -85,8 +144,35 @@ export async function processAudioWorkflow(
           if (generatedContent) {
             taskWithContent.generated_content = generatedContent;
           }
+
+          const generateDuration = performance.now() - generateStartTime;
+          await logPipelineEvent(context.env.ANALYTICS, {
+            timestamp: Date.now(),
+            taskId,
+            userId,
+            stage: 'generate',
+            duration_ms: generateDuration,
+            status: 'completed',
+          });
         } catch (error) {
           // Continue processing other tasks even if one generation fails
+          const generateDuration = performance.now() - generateStartTime;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+          try {
+            await logPipelineEvent(context.env.ANALYTICS, {
+              timestamp: Date.now(),
+              taskId,
+              userId,
+              stage: 'generate',
+              duration_ms: generateDuration,
+              status: 'failed',
+              metadata: { errorMessage },
+            });
+          } catch (analyticsError) {
+            console.warn('[Analytics] Failed to log generate error:', analyticsError);
+          }
+
           console.error(`Failed to generate content for task "${task.task}":`, error);
         }
       }
@@ -96,7 +182,40 @@ export async function processAudioWorkflow(
 
     // Step 4: Update D1 with results
     const processedTasksJson = JSON.stringify(tasksWithContent);
-    await updateTaskResults(context.env.DB, taskId, transcription, processedTasksJson);
+    const dbUpdateStartTime = performance.now();
+
+    try {
+      await updateTaskResults(context.env.DB, taskId, transcription, processedTasksJson);
+
+      const dbUpdateDuration = performance.now() - dbUpdateStartTime;
+      await logPipelineEvent(context.env.ANALYTICS, {
+        timestamp: Date.now(),
+        taskId,
+        userId,
+        stage: 'db_update',
+        duration_ms: dbUpdateDuration,
+        status: 'completed',
+      });
+    } catch (dbError) {
+      const dbUpdateDuration = performance.now() - dbUpdateStartTime;
+      const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
+
+      try {
+        await logPipelineEvent(context.env.ANALYTICS, {
+          timestamp: Date.now(),
+          taskId,
+          userId,
+          stage: 'db_update',
+          duration_ms: dbUpdateDuration,
+          status: 'failed',
+          metadata: { errorMessage },
+        });
+      } catch (analyticsError) {
+        console.warn('[Analytics] Failed to log db_update error:', analyticsError);
+      }
+
+      throw dbError;
+    }
 
     return {
       status: 'completed',

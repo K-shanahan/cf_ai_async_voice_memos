@@ -18,6 +18,7 @@
 import type { Env } from './index';
 import { handleAudioProcessingWorkflow } from './workflow-handler';
 import type { R2ObjectCreatedEvent } from './workflow-handler';
+import { logPipelineEvent } from './analytics';
 
 export interface QueueMessage {
   bucket: string;
@@ -37,6 +38,7 @@ export async function handleQueueConsumer(
   env: Env
 ): Promise<void> {
   for (const message of batch.messages) {
+    const queueProcessStartTime = performance.now();
     try {
       const queueMessage = message.body as QueueMessage;
 
@@ -56,10 +58,40 @@ export async function handleQueueConsumer(
       // Acknowledge the message (remove from queue)
       message.ack();
 
+      const queueProcessDuration = performance.now() - queueProcessStartTime;
+      await logPipelineEvent(env.ANALYTICS, {
+        timestamp: Date.now(),
+        taskId: queueMessage.taskId,
+        userId: queueMessage.userId,
+        stage: 'queue',
+        duration_ms: queueProcessDuration,
+        status: 'completed',
+      });
+
       console.log(`✅ Successfully processed task: ${queueMessage.taskId}`);
     } catch (error) {
       const taskId = (message.body as QueueMessage).taskId;
+      const userId = (message.body as QueueMessage).userId;
       console.error(`❌ Failed to process task ${taskId}:`, error);
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const queueProcessDuration = performance.now() - queueProcessStartTime;
+
+      try {
+        await logPipelineEvent(env.ANALYTICS, {
+          timestamp: Date.now(),
+          taskId,
+          userId,
+          stage: 'queue',
+          duration_ms: queueProcessDuration,
+          status: 'failed',
+          metadata: {
+            errorMessage,
+          },
+        });
+      } catch (analyticsError) {
+        console.warn('[Analytics] Failed to log queue error event:', analyticsError);
+      }
 
       // Retry the message (Cloudflare will re-queue based on max_retries in wrangler.toml)
       message.retry();
