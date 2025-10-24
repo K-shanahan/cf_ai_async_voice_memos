@@ -27,7 +27,6 @@ class_name = "AudioProcessingWorkflow"
 [[env.production.durable_objects.bindings]]
 name = "TASK_STATUS_DO"
 class_name = "TaskStatusDO"
-script_name = "voice-memo-task-manager"
 
 # AI
 [env.production.ai]
@@ -73,7 +72,6 @@ class_name = "AudioProcessingWorkflow"
 [[env.development.durable_objects.bindings]]
 name = "TASK_STATUS_DO"
 class_name = "TaskStatusDO"
-script_name = "voice-memo-task-manager"
 
 [env.development.ai]
 binding = "AI"
