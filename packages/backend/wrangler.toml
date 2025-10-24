@@ -3,6 +3,11 @@ main = "src/index.ts"
 account_id = "cf5e8c54ff4c0a3c69b9920fd54e9a73"
 compatibility_date = "2024-10-22"
 
+# Migrations for Durable Objects
+[[migrations]]
+tag = "v1"
+new_classes = ["TaskStatusDO"]
+
 [env.production]
 vars = { ENVIRONMENT = "production", ALLOWED_ORIGIN = "https://master.voice-memo-frontend.pages.dev" }
 
