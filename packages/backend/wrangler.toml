@@ -23,6 +23,12 @@ name = "audio-processing"
 binding = "AUDIO_PROCESSING_WORKFLOW"
 class_name = "AudioProcessingWorkflow"
 
+# Durable Objects for real-time status updates
+[[env.production.durable_objects.bindings]]
+name = "TASK_STATUS_DO"
+class_name = "TaskStatusDO"
+script_name = "voice-memo-task-manager"
+
 # AI
 [env.production.ai]
 binding = "AI"
@@ -62,6 +68,12 @@ jurisdiction = "eu"
 name = "audio-processing"
 binding = "AUDIO_PROCESSING_WORKFLOW"
 class_name = "AudioProcessingWorkflow"
+
+# Durable Objects for real-time status updates
+[[env.development.durable_objects.bindings]]
+name = "TASK_STATUS_DO"
+class_name = "TaskStatusDO"
+script_name = "voice-memo-task-manager"
 
 [env.development.ai]
 binding = "AI"

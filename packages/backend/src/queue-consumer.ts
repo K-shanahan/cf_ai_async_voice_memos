@@ -19,6 +19,7 @@ import type { Env } from './index';
 import { handleAudioProcessingWorkflow } from './workflow-handler';
 import type { R2ObjectCreatedEvent } from './workflow-handler';
 import { logPipelineEvent } from './analytics';
+import type { StatusUpdate } from './durable-objects/task-status-do';
 
 export interface QueueMessage {
   bucket: string;
@@ -27,6 +28,42 @@ export interface QueueMessage {
   eventTimestamp: string;
   taskId: string;
   userId: string;
+}
+
+/**
+ * Publish a workflow start notification to the Durable Object
+ * This is a fire-and-forget operation - failures do not affect the queue processing
+ *
+ * @param taskId - The task ID
+ * @param env - The worker environment with TASK_STATUS_DO binding
+ */
+function publishWorkflowStartUpdate(taskId: string, env: Env): void {
+  // Fire-and-forget: don't await this call
+  const doId = env.TASK_STATUS_DO?.idFromName?.(taskId);
+  if (!doId || !env.TASK_STATUS_DO?.get) {
+    // If TASK_STATUS_DO is not available, silently skip
+    return;
+  }
+
+  const doStub = env.TASK_STATUS_DO.get(doId);
+
+  // Perform the fetch in the background without awaiting
+  doStub
+    .fetch(
+      new Request('https://do/publish', {
+        method: 'POST',
+        body: JSON.stringify({
+          taskId,
+          stage: 'workflow',
+          status: 'started',
+          timestamp: Date.now()
+        } as StatusUpdate)
+      })
+    )
+    .catch((err) => {
+      // Log errors but don't throw - status updates are non-critical
+      console.error(`[StatusUpdate] Failed to publish workflow start for task ${taskId}:`, err);
+    });
 }
 
 /**
@@ -48,6 +85,9 @@ export async function handleQueueConsumer(
       console.log(`[Timing] Queue wait time (message created → batch received): ${queueWaitTime.toFixed(0)}ms`);
 
       console.log(`Processing queue message for task: ${queueMessage.taskId}`);
+
+      // Notify clients that workflow is starting (fire-and-forget)
+      publishWorkflowStartUpdate(queueMessage.taskId, env);
 
       // Convert queue message to R2 event format
       const r2Event: R2ObjectCreatedEvent = {

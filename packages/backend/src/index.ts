@@ -7,6 +7,8 @@ import { AudioProcessingWorkflow } from './workflow-handler';
 import { handleQueueConsumer } from './queue-consumer';
 import { extractUserFromRequest, extractUserIdLegacy, AuthError } from './auth';
 import { handleCORSPreflight, addCORSHeaders } from './cors';
+import { TaskStatusDO } from './durable-objects/task-status-do';
+import { getTask } from './db';
 
 export interface Env {
   DB: D1Database;
@@ -15,6 +17,7 @@ export interface Env {
   AI: Ai;
   VOICE_MEMO_QUEUE?: Queue;
   ANALYTICS: AnalyticsEngineDataset;
+  TASK_STATUS_DO: DurableObjectNamespace;
   ENVIRONMENT: string;
   ALLOWED_ORIGIN?: string;
 }
@@ -48,6 +51,53 @@ function extractUserIdFromRequest(request: Request): string {
 
     // No valid auth method found
     throw error;
+  }
+}
+
+/**
+ * Handle WebSocket upgrade for real-time task status updates
+ * Verifies user authentication and task ownership before connecting to Durable Object
+ */
+async function handleWebSocketUpgrade(
+  request: Request,
+  context: WorkerContext
+): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split('/');
+    const taskId = pathParts[pathParts.length - 1];
+
+    // Verify task ownership
+    const task = await getTask(context.env.DB, taskId, context.data.userId);
+    if (!task) {
+      return new Response(
+        JSON.stringify({
+          error: 'Not Found',
+          message: 'Task not found or access denied'
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Forward WebSocket request to Durable Object
+    const doId = context.env.TASK_STATUS_DO.idFromName(taskId);
+    const doStub = context.env.TASK_STATUS_DO.get(doId);
+    return doStub.fetch(request);
+  } catch (error) {
+    console.error('[WebSocket] Error during upgrade:', error);
+    return new Response(
+      JSON.stringify({
+        error: 'Internal Server Error',
+        message: 'Failed to establish WebSocket connection'
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   }
 }
 
@@ -128,6 +178,11 @@ export default {
       return addCORSHeaders(response, request, env.ALLOWED_ORIGIN);
     }
 
+    // Route: GET /ws/task/:taskId (WebSocket for real-time status updates)
+    if (method === 'GET' && path.match(/^\/ws\/task\/[a-f0-9\-]+$/)) {
+      return handleWebSocketUpgrade(request, context);
+    }
+
     // 404
     const notFoundResponse = new Response('Not Found', { status: 404 });
     return addCORSHeaders(notFoundResponse, request, env.ALLOWED_ORIGIN);
@@ -144,3 +199,10 @@ export default {
  * This is called automatically by Cloudflare when an R2 Object Created event occurs
  */
 export { AudioProcessingWorkflow };
+
+/**
+ * Export the Durable Object class for status updates
+ * The name must match the "class_name" in wrangler.toml
+ * Manages real-time WebSocket connections and status update history for audio processing tasks
+ */
+export { TaskStatusDO };

@@ -4,6 +4,7 @@
  */
 
 import type { MockWorkerContext } from './test-utils';
+import type { StatusUpdate } from './durable-objects/task-status-do';
 import { updateTaskResults, updateTaskError } from './db';
 import { transcribeAudio } from './workflow/transcribe';
 import { extractTasks, type ProcessedTask } from './workflow/extract';
@@ -41,6 +42,45 @@ export interface WorkflowInput {
 }
 
 /**
+ * Publish a workflow status update to the Durable Object
+ * This is a fire-and-forget operation - failures do not affect the workflow
+ *
+ * @param taskId - The task ID
+ * @param update - The status update to publish
+ * @param env - The worker environment with TASK_STATUS_DO binding
+ *
+ * Note: This function returns immediately without awaiting the fetch call.
+ * Updates are published asynchronously in the background.
+ */
+function publishWorkflowUpdate(
+  taskId: string,
+  update: Omit<StatusUpdate, 'taskId'>,
+  env: any
+): void {
+  // Fire-and-forget: don't await this call
+  const doId = env.TASK_STATUS_DO?.idFromName?.(taskId);
+  if (!doId || !env.TASK_STATUS_DO?.get) {
+    // If TASK_STATUS_DO is not available (e.g., in tests), silently skip
+    return;
+  }
+
+  const doStub = env.TASK_STATUS_DO.get(doId);
+
+  // Perform the fetch in the background without awaiting
+  doStub
+    .fetch(
+      new Request('https://do/publish', {
+        method: 'POST',
+        body: JSON.stringify({ ...update, taskId })
+      })
+    )
+    .catch((err) => {
+      // Log errors but don't throw - status updates are non-critical
+      console.error(`[StatusUpdate] Failed to publish update for task ${taskId}:`, err);
+    });
+}
+
+/**
  * Main workflow orchestration function
  * Coordinates the entire processing pipeline
  */
@@ -57,6 +97,14 @@ export async function processAudioWorkflow(
     let transcription = input.transcription;
     if (!transcription) {
       const transcribeStartTime = performance.now();
+
+      // Notify clients that transcription is starting (fire-and-forget)
+      publishWorkflowUpdate(taskId, {
+        stage: 'transcribe',
+        status: 'started',
+        timestamp: Date.now()
+      }, context.env);
+
       try {
         const r2RetrieveStartTime = performance.now();
         const audioBuffer = await retrieveAudioFromR2(context, r2Key);
@@ -74,6 +122,14 @@ export async function processAudioWorkflow(
           duration_ms: transcribeDuration,
           status: 'completed',
         });
+
+        // Notify clients that transcription is complete (fire-and-forget)
+        publishWorkflowUpdate(taskId, {
+          stage: 'transcribe',
+          status: 'completed',
+          duration_ms: Math.round(transcribeDuration),
+          timestamp: Date.now()
+        }, context.env);
       } catch (error) {
         const transcribeDuration = performance.now() - transcribeStartTime;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -92,6 +148,14 @@ export async function processAudioWorkflow(
           console.warn('[Analytics] Failed to log transcribe error:', analyticsError);
         }
 
+        // Notify clients that transcription failed (fire-and-forget)
+        publishWorkflowUpdate(taskId, {
+          stage: 'transcribe',
+          status: 'failed',
+          error_message: errorMessage,
+          timestamp: Date.now()
+        }, context.env);
+
         throw new Error(`Failed to transcribe audio: ${errorMessage}`);
       }
     }
@@ -100,6 +164,14 @@ export async function processAudioWorkflow(
     let processedTasks: ProcessedTask[] = input.extractedTasks || [];
     if (!input.extractedTasks) {
       const extractStartTime = performance.now();
+
+      // Notify clients that extraction is starting (fire-and-forget)
+      publishWorkflowUpdate(taskId, {
+        stage: 'extract',
+        status: 'started',
+        timestamp: Date.now()
+      }, context.env);
+
       try {
         processedTasks = await extractTasks(transcription, context.env);
 
@@ -113,6 +185,14 @@ export async function processAudioWorkflow(
           status: 'completed',
           metadata: { taskCount: processedTasks.length },
         });
+
+        // Notify clients that extraction is complete (fire-and-forget)
+        publishWorkflowUpdate(taskId, {
+          stage: 'extract',
+          status: 'completed',
+          duration_ms: Math.round(extractDuration),
+          timestamp: Date.now()
+        }, context.env);
       } catch (error) {
         const extractDuration = performance.now() - extractStartTime;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -131,6 +211,14 @@ export async function processAudioWorkflow(
           console.warn('[Analytics] Failed to log extract error:', analyticsError);
         }
 
+        // Notify clients that extraction failed (fire-and-forget)
+        publishWorkflowUpdate(taskId, {
+          stage: 'extract',
+          status: 'failed',
+          error_message: errorMessage,
+          timestamp: Date.now()
+        }, context.env);
+
         throw new Error(`Failed to extract tasks: ${errorMessage}`);
       }
     }
@@ -142,6 +230,14 @@ export async function processAudioWorkflow(
 
       if (task.generative_task_prompt) {
         const generateStartTime = performance.now();
+
+        // Notify clients that generation is starting (fire-and-forget)
+        publishWorkflowUpdate(taskId, {
+          stage: 'generate',
+          status: 'started',
+          timestamp: Date.now()
+        }, context.env);
+
         try {
           let generatedContent = input.generatedContent;
           if (!generatedContent) {
@@ -160,6 +256,14 @@ export async function processAudioWorkflow(
             duration_ms: generateDuration,
             status: 'completed',
           });
+
+          // Notify clients that generation is complete (fire-and-forget)
+          publishWorkflowUpdate(taskId, {
+            stage: 'generate',
+            status: 'completed',
+            duration_ms: Math.round(generateDuration),
+            timestamp: Date.now()
+          }, context.env);
         } catch (error) {
           // Continue processing other tasks even if one generation fails
           const generateDuration = performance.now() - generateStartTime;
@@ -179,6 +283,14 @@ export async function processAudioWorkflow(
             console.warn('[Analytics] Failed to log generate error:', analyticsError);
           }
 
+          // Notify clients that generation failed (fire-and-forget)
+          publishWorkflowUpdate(taskId, {
+            stage: 'generate',
+            status: 'failed',
+            error_message: errorMessage,
+            timestamp: Date.now()
+          }, context.env);
+
           console.error(`Failed to generate content for task "${task.task}":`, error);
         }
       }
@@ -189,6 +301,13 @@ export async function processAudioWorkflow(
     // Step 4: Update D1 with results
     const processedTasksJson = JSON.stringify(tasksWithContent);
     const dbUpdateStartTime = performance.now();
+
+    // Notify clients that database update is starting (fire-and-forget)
+    publishWorkflowUpdate(taskId, {
+      stage: 'db_update',
+      status: 'started',
+      timestamp: Date.now()
+    }, context.env);
 
     try {
       await updateTaskResults(context.env.DB, taskId, transcription, processedTasksJson);
@@ -203,6 +322,14 @@ export async function processAudioWorkflow(
         duration_ms: dbUpdateDuration,
         status: 'completed',
       });
+
+      // Notify clients that database update is complete (fire-and-forget)
+      publishWorkflowUpdate(taskId, {
+        stage: 'db_update',
+        status: 'completed',
+        duration_ms: Math.round(dbUpdateDuration),
+        timestamp: Date.now()
+      }, context.env);
     } catch (dbError) {
       const dbUpdateDuration = performance.now() - dbUpdateStartTime;
       const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
@@ -220,6 +347,14 @@ export async function processAudioWorkflow(
       } catch (analyticsError) {
         console.warn('[Analytics] Failed to log db_update error:', analyticsError);
       }
+
+      // Notify clients that database update failed (fire-and-forget)
+      publishWorkflowUpdate(taskId, {
+        stage: 'db_update',
+        status: 'failed',
+        error_message: errorMessage,
+        timestamp: Date.now()
+      }, context.env);
 
       throw dbError;
     }
