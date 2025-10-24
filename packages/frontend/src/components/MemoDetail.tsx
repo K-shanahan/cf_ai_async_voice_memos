@@ -98,8 +98,8 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         )}
       </div>
 
-      {/* Connection Status Badge - Only visible when disconnected */}
-      {connectionStatus !== 'connected' && (
+      {/* Connection Status Badge - Only visible when disconnected and task is processing */}
+      {connectionStatus !== 'connected' && memo.status === 'pending' && (
         <ConnectionStatusBadge
           status={connectionStatus}
           isUsingFallback={isUsingFallback}

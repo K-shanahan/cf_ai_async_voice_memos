@@ -51,6 +51,9 @@ export function useWebSocketMemo(taskId: string) {
   const pollingQuery = useMemoDetail(taskId)
   const memo = pollingQuery.data
 
+  // Check if task is complete - don't reconnect if it is
+  const isTaskComplete = memo?.status === 'completed' || memo?.status === 'failed'
+
   // Determine current stage based on progress
   const getCurrentStage = useCallback((): string | null => {
     const stages: Array<[keyof StageProgress, string]> = [
@@ -201,6 +204,12 @@ export function useWebSocketMemo(taskId: string) {
 
   // Attempt to reconnect with exponential backoff
   const attemptReconnect = useCallback(async () => {
+    // Don't reconnect if task is complete
+    if (isTaskComplete) {
+      console.log('[WebSocket] Task complete, not attempting reconnect')
+      return
+    }
+
     if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
       console.warn(
         `[WebSocket] Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached, switching to polling`
@@ -221,11 +230,18 @@ export function useWebSocketMemo(taskId: string) {
     }, delay)
 
     reconnectAttemptsRef.current++
-  }, [getBackoffDelay])
+  }, [getBackoffDelay, isTaskComplete])
 
   // Connect to WebSocket
   const connectWebSocket = useCallback(async () => {
     try {
+      // Don't connect if task is already complete
+      if (isTaskComplete) {
+        console.log('[WebSocket] Task already complete, skipping connection')
+        setConnectionStatus('disconnected')
+        return
+      }
+
       console.log('[WebSocket] Attempting connection for task:', taskId)
       const token = await getToken()
       if (!token) {
@@ -254,10 +270,12 @@ export function useWebSocketMemo(taskId: string) {
         setConnectionStatus('disconnected')
         wsRef.current = null
 
-        // Attempt reconnect if not already using fallback polling
-        if (!useFallbackPolling) {
+        // Don't reconnect if task is already complete or if already using fallback polling
+        if (!useFallbackPolling && !isTaskComplete) {
           console.log('[WebSocket] Attempting reconnect...')
           attemptReconnect()
+        } else if (isTaskComplete) {
+          console.log('[WebSocket] Task complete, not reconnecting')
         }
       }
 
@@ -270,7 +288,7 @@ export function useWebSocketMemo(taskId: string) {
       console.error('[WebSocket] Connection error:', error)
       attemptReconnect()
     }
-  }, [taskId, getToken, handleMessage, useFallbackPolling, attemptReconnect])
+  }, [taskId, getToken, handleMessage, useFallbackPolling, attemptReconnect, isTaskComplete])
 
   // Establish WebSocket connection on mount
   useEffect(() => {
@@ -286,6 +304,16 @@ export function useWebSocketMemo(taskId: string) {
       }
     }
   }, [connectWebSocket])
+
+  // Close WebSocket when task completes - no need to keep connection open
+  useEffect(() => {
+    if (isTaskComplete && wsRef.current) {
+      console.log('[WebSocket] Task complete, closing connection')
+      wsRef.current.close()
+      wsRef.current = null
+      setConnectionStatus('disconnected')
+    }
+  }, [isTaskComplete])
 
   // Determine overall loading state
   const isLoading = !memo || (connectionStatus === 'disconnected' && pollingQuery.isLoading)
