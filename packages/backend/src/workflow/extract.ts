@@ -3,6 +3,7 @@
  */
 
 import type { Ai } from '@cloudflare/workers-types';
+import { TASK_EXTRACTION_SYSTEM_PROMPT } from './prompts';
 
 export interface ProcessedTask {
   task: string;
@@ -14,36 +15,6 @@ export interface ProcessedTask {
 interface AIEnv {
   AI?: Ai;
 }
-
-const TASK_EXTRACTION_SYSTEM_PROMPT = `You are an assistant that extracts actionable tasks from transcribed text or voice memos.
-
-Your job is to:
-1. Identify all tasks, todos, reminders, or action items mentioned in the text
-2. For each task, provide:
-   - task: A clear, concise description of what needs to be done
-   - due: An ISO 8601 datetime string if a deadline is mentioned, otherwise null
-   - generative_task_prompt: A prompt to send to an LLM if the user wants AI-generated content for this task (e.g., "Draft an email to John"), otherwise null
-
-Respond ONLY with valid JSON. Do not include any other text.
-
-Example input:
-"Remind me to email the client tomorrow about the new proposal and draft a quick outline for it."
-
-Example output:
-{
-  "tasks": [
-    {
-      "task": "Email client about new proposal",
-      "due": "2025-10-24T09:00:00Z",
-      "generative_task_prompt": null
-    },
-    {
-      "task": "Draft outline for proposal",
-      "due": null,
-      "generative_task_prompt": "Draft a professional outline for a business proposal"
-    }
-  ]
-}`;
 
 /**
  * Extract tasks from transcription using Llama 3

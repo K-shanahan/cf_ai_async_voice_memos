@@ -3,6 +3,7 @@
  */
 
 import type { Ai } from '@cloudflare/workers-types';
+import { CONTENT_GENERATION_SYSTEM_PROMPT } from './prompts';
 
 interface AIEnv {
   AI?: Ai;
@@ -32,13 +33,7 @@ export async function generateTaskContent(
     // Call Llama 3 model via Workers AI
     const aiCallStartTime = performance.now();
     const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
-      prompt: `You are a helpful assistant that generates content based on user requests.
-
-User request: ${prompt}
-
-Generate relevant, useful, and professional content in **Markdown format** to help the user with 
-  their request.
-  Use proper markdown syntax for formatting (headers, lists, emphasis, code blocks, etc.).`,
+      prompt: CONTENT_GENERATION_SYSTEM_PROMPT.replace('{prompt}', prompt),
       max_tokens: 512,
     }) as { response: string };
     const aiCallTime = performance.now() - aiCallStartTime;

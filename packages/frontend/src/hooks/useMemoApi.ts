@@ -124,7 +124,11 @@ export function useUploadMemo() {
       queryClient.prefetchQuery({
         queryKey: MEMO_QUERY_KEYS.detail(data.taskId),
         queryFn: async () => {
-          return apiRequest<MemoDetailResponse>(`/api/v1/memo/${data.taskId}`)
+          const token = await getToken()
+          if (!token) {
+            throw new Error('No authentication token available')
+          }
+          return apiRequest<MemoDetailResponse>(`/api/v1/memo/${data.taskId}`, {}, token)
         },
       })
     },

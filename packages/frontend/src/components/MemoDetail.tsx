@@ -61,7 +61,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
 
   // If memo is still pending, show only the timeline
   if (memo.status === 'pending') {
-    console.log(`[MemoDetail:${taskId}] Rendering pending memo with timeline`)
     return (
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">

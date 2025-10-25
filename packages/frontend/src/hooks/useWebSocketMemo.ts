@@ -35,6 +35,7 @@ export function useWebSocketMemo(taskId: string) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
+  const intentionallyClosed = useRef(false)  // Track if we intentionally closed due to completion
 
   // State
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -87,9 +88,8 @@ export function useWebSocketMemo(taskId: string) {
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
-        console.log(`[WebSocket:${taskId}] Raw message received:`, event.data)
+        console.log(`[WebSocket:${taskId}] Message received:`, event.data)
         const data = JSON.parse(event.data) as unknown
-        console.log(`[WebSocket:${taskId}] Parsed data:`, data)
 
         // Type guard to check if it's a history message
         if (
@@ -100,16 +100,12 @@ export function useWebSocketMemo(taskId: string) {
         ) {
           // Process history message
           const historyMsg = data as HistoryMessage
-          console.log(
-            `[WebSocket:${taskId}] Processing history message with ${historyMsg.updates.length} updates`
-          )
+          console.log(`[WebSocket:${taskId}] History message with ${historyMsg.updates.length} updates`)
           processStatusUpdates(historyMsg.updates)
         } else {
           // Single status update
           const update = data as StatusUpdate
-          console.log(
-            `[WebSocket:${taskId}] Processing single update for taskId: ${update.taskId}, stage: ${update.stage}, status: ${update.status}`
-          )
+          console.log(`[WebSocket:${taskId}] Status update: stage=${update.stage}, status=${update.status}`)
 
           // Validate this update is for the correct taskId
           if (update.taskId !== taskId) {
@@ -130,9 +126,7 @@ export function useWebSocketMemo(taskId: string) {
 
   // Process single status update
   const processStatusUpdate = useCallback((update: StatusUpdate) => {
-    console.log(
-      `[WebSocket:${taskId}] Processing update: taskId=${update.taskId}, stage=${update.stage}, status=${update.status}, timestamp=${update.timestamp}`
-    )
+    console.log(`[WebSocket:${taskId}] Processing update: stage=${update.stage}, status=${update.status}`)
 
     // Update stage progress (only if it's a tracked stage, not 'workflow')
     if (
@@ -142,18 +136,12 @@ export function useWebSocketMemo(taskId: string) {
       update.stage === 'db_update'
     ) {
       setStageProgress((prev) => {
-        const newProgress = {
+        const newStatus = update.status === 'failed' ? 'failed' : update.status
+        console.log(`[WebSocket:${taskId}] Updating stage "${update.stage}" to "${newStatus}"`)
+        return {
           ...prev,
-          [update.stage]: update.status === 'failed' ? 'failed' : update.status,
+          [update.stage]: newStatus,
         }
-        console.log(
-          `[WebSocket:${taskId}] Stage progress updated for "${update.stage}":`,
-          {
-            before: { ...prev },
-            after: { ...newProgress },
-          }
-        )
-        return newProgress
       })
     } else {
       console.log(`[WebSocket:${taskId}] Ignoring stage "${update.stage}" (not a tracked stage)`)
@@ -176,15 +164,31 @@ export function useWebSocketMemo(taskId: string) {
 
     // When db_update completes, invalidate cache and close WebSocket
     if (update.stage === 'db_update' && update.status === 'completed') {
-      console.log(
-        `[WebSocket:${taskId}] Database update completed, invalidating cache and closing WebSocket`
-      )
+      console.log(`[WebSocket:${taskId}] ✓ DB_UPDATE COMPLETED - Refetching memo list and detail`)
+      // Mark that we're intentionally closing due to completion
+      intentionallyClosed.current = true
       // Refetch to get complete data from database
       queryClient.invalidateQueries({
         queryKey: MEMO_QUERY_KEYS.detail(update.taskId),
       })
+      console.log(`[WebSocket:${taskId}] Invalidating memo list queries with prefix matching`)
+      // Also invalidate ALL memo list queries regardless of pagination params
+      queryClient.invalidateQueries({
+        queryKey: MEMO_QUERY_KEYS.lists(),
+        exact: false  // Use prefix matching to catch all list queries
+      })
+      // Force refetch of all memo list queries to ensure they're updated
+      queryClient.refetchQueries({
+        queryKey: MEMO_QUERY_KEYS.lists(),
+        exact: false  // Use prefix matching to catch all list queries
+      }).then((result) => {
+        console.log(`[WebSocket:${taskId}] Refetch complete, updated ${result.length} queries`)
+      }).catch((error) => {
+        console.error(`[WebSocket:${taskId}] Refetch error:`, error)
+      })
       // Close WebSocket since processing is complete
       if (wsRef.current) {
+        console.log(`[WebSocket:${taskId}] Closing WebSocket (task completed)`)
         wsRef.current.close()
         wsRef.current = null
       }
@@ -193,8 +197,6 @@ export function useWebSocketMemo(taskId: string) {
 
   // Process history of updates
   const processStatusUpdates = useCallback((updates: StatusUpdate[]) => {
-    console.log(`[WebSocket:${taskId}] Processing history of ${updates.length} updates`)
-
     // Validate all updates are for this taskId
     const updatesByTaskId = updates.reduce(
       (acc, update) => {
@@ -203,8 +205,6 @@ export function useWebSocketMemo(taskId: string) {
       },
       {} as Record<string, number>
     )
-
-    console.log(`[WebSocket:${taskId}] Updates by taskId:`, updatesByTaskId)
 
     if (Object.keys(updatesByTaskId).length > 1) {
       console.warn(
@@ -232,9 +232,6 @@ export function useWebSocketMemo(taskId: string) {
         continue
       }
 
-      console.log(
-        `[WebSocket:${taskId}] History update: stage=${update.stage}, status=${update.status}, timestamp=${update.timestamp}`
-      )
       // Update stage progress (only if it's a tracked stage, not 'workflow')
       if (
         update.stage === 'transcribe' ||
@@ -254,7 +251,6 @@ export function useWebSocketMemo(taskId: string) {
       }
     }
 
-    console.log(`[WebSocket:${taskId}] Final progress from history:`, newProgress)
     setStageProgress(newProgress)
     setErrors(newErrors)
     setIsInitialized(true)
@@ -273,23 +269,18 @@ export function useWebSocketMemo(taskId: string) {
   const attemptReconnect = useCallback(async () => {
     // Don't reconnect if task is complete
     if (isTaskComplete) {
-      console.log('[WebSocket] Task complete, not attempting reconnect')
       return
     }
 
     if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
       console.warn(
-        `[WebSocket] Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached, switching to polling`
+        `[WebSocket:${taskId}] Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached, switching to polling`
       )
       setUseFallbackPolling(true)
       return
     }
 
     const delay = getBackoffDelay()
-    console.log(
-      `[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`
-    )
-
     setConnectionStatus('reconnecting')
 
     reconnectTimeoutRef.current = setTimeout(() => {
@@ -297,34 +288,33 @@ export function useWebSocketMemo(taskId: string) {
     }, delay)
 
     reconnectAttemptsRef.current++
-  }, [getBackoffDelay, isTaskComplete])
+  }, [getBackoffDelay, isTaskComplete, taskId])
 
   // Connect to WebSocket
   const connectWebSocket = useCallback(async () => {
     try {
       // Don't connect if task is already complete
       if (isTaskComplete) {
-        console.log(`[WebSocket:${taskId}] Task already complete, skipping connection`)
+        console.log(`[WebSocket:${taskId}] Task already complete, not connecting`)
         setConnectionStatus('disconnected')
         return
       }
 
-      console.log(`[WebSocket:${taskId}] Attempting connection for task: ${taskId}`)
+      console.log(`[WebSocket:${taskId}] Attempting connection...`)
       const token = await getToken()
       if (!token) {
         console.error(`[WebSocket:${taskId}] No auth token available`)
         return
       }
 
-      console.log(`[WebSocket:${taskId}] Token obtained, length: ${token.length}`)
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const wsUrl = `${wsProtocol}//${new URL(API_BASE_URL).host}/ws/task/${taskId}?token=${encodeURIComponent(token)}`
 
-      console.log(`[WebSocket:${taskId}] Connecting to: ${wsUrl}`)
+      console.log(`[WebSocket:${taskId}] Connecting to: ${wsUrl.split('?')[0]}...`)
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
-        console.log(`[WebSocket:${taskId}] ✓ Connected successfully`)
+        console.log(`[WebSocket:${taskId}] ✓ Connected`)
         setConnectionStatus('connected')
         reconnectAttemptsRef.current = 0
         setUseFallbackPolling(false)
@@ -333,9 +323,15 @@ export function useWebSocketMemo(taskId: string) {
       ws.onmessage = handleMessage
 
       ws.onclose = () => {
-        console.warn(`[WebSocket:${taskId}] ✗ Disconnected`)
+        console.log(`[WebSocket:${taskId}] Connection closed`)
         setConnectionStatus('disconnected')
         wsRef.current = null
+
+        // If we intentionally closed due to task completion, don't reconnect
+        if (intentionallyClosed.current) {
+          console.log(`[WebSocket:${taskId}] Connection was intentionally closed (task completed), not reconnecting`)
+          return
+        }
 
         // Check current memo status (not captured isTaskComplete which may be stale)
         const currentMemoStatus = memo?.status
@@ -343,15 +339,15 @@ export function useWebSocketMemo(taskId: string) {
 
         // Don't reconnect if task is already complete or if already using fallback polling
         if (!useFallbackPolling && !taskIsComplete) {
-          console.log(`[WebSocket:${taskId}] Attempting reconnect...`)
+          console.log(`[WebSocket:${taskId}] Task not complete, attempting reconnect...`)
           attemptReconnect()
         } else if (taskIsComplete) {
-          console.log(`[WebSocket:${taskId}] Task complete (status=${currentMemoStatus}), not reconnecting`)
+          console.log(`[WebSocket:${taskId}] Task is complete (${currentMemoStatus}), not reconnecting`)
         }
       }
 
       ws.onerror = (error) => {
-        console.error(`[WebSocket:${taskId}] ✗ Error:`, error)
+        console.error(`[WebSocket:${taskId}] Error:`, error)
       }
 
       wsRef.current = ws
@@ -363,25 +359,24 @@ export function useWebSocketMemo(taskId: string) {
 
   // Establish WebSocket connection on mount (skip if task already complete)
   useEffect(() => {
+    // Reset the intentionally closed flag when the taskId changes
+    intentionallyClosed.current = false
+
     // Wait for memo data to load before deciding whether to connect
     if (pollingQuery.isLoading) {
-      console.log(`[WebSocket:${taskId}] Waiting for memo data to load before deciding on WebSocket...`)
       return
     }
 
     if (isTaskComplete) {
-      console.log(`[WebSocket:${taskId}] Task already complete, skipping WebSocket connection`)
       // For completed tasks, mark as initialized since we don't need WebSocket
       setIsInitialized(true)
       return
     }
 
-    console.log(`[WebSocket:${taskId}] Hook mounted, establishing connection`)
     connectWebSocket()
 
     return () => {
       // Cleanup
-      console.log(`[WebSocket:${taskId}] Hook unmounting, cleaning up`)
       if (wsRef.current) {
         wsRef.current.close()
       }
@@ -394,7 +389,8 @@ export function useWebSocketMemo(taskId: string) {
   // Close WebSocket when task completes - no need to keep connection open
   useEffect(() => {
     if (isTaskComplete && wsRef.current) {
-      console.log(`[WebSocket:${taskId}] Task complete (status=${memo?.status}), closing connection`)
+      console.log(`[WebSocket:${taskId}] Task complete, closing WebSocket`)
+      intentionallyClosed.current = true
       wsRef.current.close()
       wsRef.current = null
       setConnectionStatus('disconnected')
@@ -410,20 +406,6 @@ export function useWebSocketMemo(taskId: string) {
 
   // Determine overall loading state - wait for initialization if pending
   const isLoading = !memo || !isInitialized || (connectionStatus === 'disconnected' && pollingQuery.isLoading)
-
-  // Log current state (useful for debugging) - only log while processing
-  useEffect(() => {
-    if (memo?.status === 'pending') {
-      console.log(`[WebSocket:${taskId}] Current state:`, {
-        memoStatus: memo.status,
-        connectionStatus,
-        isUsingFallback: useFallbackPolling,
-        stageProgress,
-        errorCount: errors.length,
-        isLoading,
-      })
-    }
-  }, [taskId, memo?.status, connectionStatus, useFallbackPolling, stageProgress, errors.length, isLoading])
 
   return {
     // Memo data

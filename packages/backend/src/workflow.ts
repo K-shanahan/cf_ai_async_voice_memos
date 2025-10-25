@@ -323,7 +323,9 @@ export async function processAudioWorkflow(
     }, context.env);
 
     try {
+      console.log(`[DBUpdate] Updating task results for ${taskId}...`);
       await updateTaskResults(context.env.DB, taskId, transcription, processedTasksJson);
+      console.log(`[DBUpdate] ✓ Task results updated successfully for ${taskId}`);
 
       const dbUpdateDuration = performance.now() - dbUpdateStartTime;
       console.log(`[Timing] DB update: ${dbUpdateDuration.toFixed(2)}ms`);
@@ -339,15 +341,19 @@ export async function processAudioWorkflow(
       // Notify clients that database update is complete
       // IMPORTANT: Await this call to prevent race condition where frontend invalidates cache
       // before Durable Object confirms receipt of the completion message
+      console.log(`[DBUpdate] Publishing db_update completion message for ${taskId}...`);
       await publishWorkflowUpdate(taskId, {
         stage: 'db_update',
         status: 'completed',
         duration_ms: Math.round(dbUpdateDuration),
         timestamp: Date.now()
       }, context.env, true);
+      console.log(`[DBUpdate] ✓ Completion message published for ${taskId}`);
     } catch (dbError) {
       const dbUpdateDuration = performance.now() - dbUpdateStartTime;
       const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
+      console.error(`[DBUpdate] ✗ Error updating task ${taskId}:`, errorMessage);
+      console.error(`[DBUpdate] Full error:`, dbError);
 
       try {
         await logPipelineEvent(context.env.ANALYTICS, {

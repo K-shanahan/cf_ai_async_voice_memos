@@ -1,9 +1,10 @@
 /**
- * MemoList - Display list of all user memos
+ * MemoList - Display list of all user memos split into processing and completed sections
  */
 
 import { useMemoList } from '../hooks/useMemoApi'
 import { MemoCard } from './MemoCard'
+import { separateMemosByStatus } from '../utils/memoUtils'
 
 interface MemoListProps {
   onMemoClick?: (taskId: string) => void
@@ -52,11 +53,55 @@ export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListPr
     )
   }
 
+  const { processing, completed } = separateMemosByStatus(memos)
+
   return (
-    <div className="space-y-3">
-      {memos.map((memo) => (
-        <MemoCard key={memo.taskId} memo={memo} onClick={() => onMemoClick?.(memo.taskId)} />
-      ))}
+    <div className="space-y-6">
+      {/* Processing Memos Section */}
+      {processing.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+            Processing
+          </h3>
+          <div className="space-y-3">
+            {processing.map((memo) => (
+              <MemoCard
+                key={memo.taskId}
+                memo={memo}
+                onClick={() => onMemoClick?.(memo.taskId)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Completed Memos Section */}
+      {completed.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+            Completed
+          </h3>
+          <div className="space-y-3">
+            {completed.map((memo) => (
+              <MemoCard
+                key={memo.taskId}
+                memo={memo}
+                onClick={() => onMemoClick?.(memo.taskId)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state when all memos are processing or completed */}
+      {processing.length === 0 && completed.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-slate-300 font-semibold mb-2">No memos yet</p>
+          <p className="text-slate-400 text-sm">Record your first memo to get started</p>
+        </div>
+      )}
     </div>
   )
 }
