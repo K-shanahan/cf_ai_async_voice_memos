@@ -43,24 +43,28 @@ export interface WorkflowInput {
 
 /**
  * Publish a workflow status update to the Durable Object
- * This is a fire-and-forget operation - failures do not affect the workflow
+ *
+ * For most updates (transcribe, extract, generate stages), this is fire-and-forget.
+ * For critical db_update completion messages, this awaits confirmation to ensure
+ * the update is persisted before the workflow returns and triggers cache invalidation.
  *
  * @param taskId - The task ID
  * @param update - The status update to publish
  * @param env - The worker environment with TASK_STATUS_DO binding
+ * @param awaitConfirmation - If true, await the Durable Object response (for critical updates)
  *
- * Note: This function returns immediately without awaiting the fetch call.
- * Updates are published asynchronously in the background.
+ * Note: Critical updates (db_update: completed) are awaited to prevent race conditions
+ * where the frontend invalidates cache before the DO confirms receipt of the update.
  */
 function publishWorkflowUpdate(
   taskId: string,
   update: Omit<StatusUpdate, 'taskId'>,
-  env: any
-): void {
+  env: any,
+  awaitConfirmation: boolean = false
+): Promise<void> | void {
   const updatePayload = { ...update, taskId };
   console.log(`[StatusUpdate] Publishing update for task ${taskId}:`, JSON.stringify(updatePayload));
 
-  // Fire-and-forget: don't await this call
   const doId = env.TASK_STATUS_DO?.idFromName?.(taskId);
   if (!doId || !env.TASK_STATUS_DO?.get) {
     // If TASK_STATUS_DO is not available (e.g., in tests), silently skip
@@ -69,15 +73,12 @@ function publishWorkflowUpdate(
   }
 
   const doStub = env.TASK_STATUS_DO.get(doId);
-
-  // Perform the fetch in the background without awaiting
-  doStub
-    .fetch(
-      new Request('https://do/publish', {
-        method: 'POST',
-        body: JSON.stringify(updatePayload)
-      })
-    )
+  const fetchPromise = doStub.fetch(
+    new Request('https://do/publish', {
+      method: 'POST',
+      body: JSON.stringify(updatePayload)
+    })
+  )
     .then(() => {
       console.log(`[StatusUpdate] ✓ Published ${update.stage} ${update.status} for task ${taskId}`);
     })
@@ -85,6 +86,11 @@ function publishWorkflowUpdate(
       // Log errors but don't throw - status updates are non-critical
       console.error(`[StatusUpdate] ✗ Failed to publish update for task ${taskId}:`, err);
     });
+
+  // Return the promise for critical updates, otherwise fire-and-forget
+  if (awaitConfirmation) {
+    return fetchPromise;
+  }
 }
 
 /**
@@ -330,13 +336,15 @@ export async function processAudioWorkflow(
         status: 'completed',
       });
 
-      // Notify clients that database update is complete (fire-and-forget)
-      publishWorkflowUpdate(taskId, {
+      // Notify clients that database update is complete
+      // IMPORTANT: Await this call to prevent race condition where frontend invalidates cache
+      // before Durable Object confirms receipt of the completion message
+      await publishWorkflowUpdate(taskId, {
         stage: 'db_update',
         status: 'completed',
         duration_ms: Math.round(dbUpdateDuration),
         timestamp: Date.now()
-      }, context.env);
+      }, context.env, true);
     } catch (dbError) {
       const dbUpdateDuration = performance.now() - dbUpdateStartTime;
       const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';

@@ -24,7 +24,6 @@ export function MemoCard({ memo, onClick }: MemoCardProps) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg">🎙️</span>
             <span className="text-sm text-slate-400">{timeAgo}</span>
           </div>
           <StatusBadge status={memo.status} processingTimeSeconds={memo.processingTimeSeconds} />

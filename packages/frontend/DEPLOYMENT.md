@@ -14,7 +14,7 @@ This guide explains how to deploy the Voice Memo Task Manager frontend to Cloudf
 
 ### Setup Steps
 
-1. **Push code to GitHub** (if not already):
+1. **Push code to GitHub**:
    ```bash
    git add .
    git commit -m "Initial monorepo commit"

@@ -164,6 +164,7 @@ export async function getUserTasksPaginated(
 
 /**
  * Delete a task by ID and user ID (security: must verify user owns task)
+ * Checks that task is not still being processed before deleting
  * Returns the task that was deleted (for cascading deletes like R2 cleanup)
  */
 export async function deleteTask(db: D1Database, taskId: string, userId: string): Promise<Task | null> {
@@ -171,6 +172,10 @@ export async function deleteTask(db: D1Database, taskId: string, userId: string)
   const task = await getTask(db, taskId, userId);
 
   if (!task) {
+    return null;
+  }
+
+  if (task.status === 'pending'|| task.status === 'processing') {
     return null;
   }
 

@@ -116,7 +116,7 @@ export function RecordButton({ onUploadStart, onUploadSuccess, onError }: Record
             disabled={uploadMemo.isPending}
             className="flex-1 px-4 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
-            {uploadMemo.isPending ? '📤 Uploading...' : '📤 Upload'}
+            {uploadMemo.isPending ? 'Uploading...' : 'Upload'}
           </button>
 
           <button
@@ -124,7 +124,7 @@ export function RecordButton({ onUploadStart, onUploadSuccess, onError }: Record
             disabled={uploadMemo.isPending}
             className="px-4 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
-            ✕
+            Discard
           </button>
         </div>
 
@@ -143,7 +143,7 @@ export function RecordButton({ onUploadStart, onUploadSuccess, onError }: Record
       onClick={handleStartRecording}
       className="w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold text-lg rounded-lg hover:from-blue-600 hover:to-blue-700 transition shadow-lg"
     >
-      🎙️ Start Recording
+      Start Recording
     </button>
   )
 }

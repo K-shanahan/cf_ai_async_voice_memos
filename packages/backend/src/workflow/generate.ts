@@ -36,8 +36,10 @@ export async function generateTaskContent(
 
 User request: ${prompt}
 
-Generate relevant, useful, and professional content to help the user with their request.`,
-      max_tokens: 1024,
+Generate relevant, useful, and professional content in **Markdown format** to help the user with 
+  their request.
+  Use proper markdown syntax for formatting (headers, lists, emphasis, code blocks, etc.).`,
+      max_tokens: 512,
     }) as { response: string };
     const aiCallTime = performance.now() - aiCallStartTime;
     console.log(`[Timing] AI.run() (inference + network): ${aiCallTime.toFixed(2)}ms`);

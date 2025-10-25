@@ -11,6 +11,7 @@ import { StatusBadge } from './StatusBadge'
 import { WorkflowProgressIndicator } from './WorkflowProgressIndicator'
 import { ErrorLogPanel } from './ErrorLogPanel'
 import { ConnectionStatusBadge } from './ConnectionStatusBadge'
+import { MarkdownContent } from './MarkdownContent'
 import { ProcessedTask } from '../types/api'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 
@@ -40,8 +41,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     return (
       <div className="space-y-4">
         <div className="h-8 bg-slate-700/50 rounded animate-pulse w-1/3"></div>
-        <div className="h-32 bg-slate-700/50 rounded animate-pulse"></div>
-        <div className="h-64 bg-slate-700/50 rounded animate-pulse"></div>
+        <div className="h-20 bg-slate-700/50 rounded animate-pulse"></div>
       </div>
     )
   }
@@ -57,6 +57,42 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
 
   if (!memo) {
     return null
+  }
+
+  // If memo is still pending, show only the timeline
+  if (memo.status === 'pending') {
+    console.log(`[MemoDetail:${taskId}] Rendering pending memo with timeline`)
+    return (
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="text-2xl font-bold text-white">Processing Memo</h2>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white text-2xl"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
+        {/* {connectionStatus !== 'connected' && (
+          <ConnectionStatusBadge
+            status={connectionStatus}
+            isUsingFallback={isUsingFallback}
+          />
+        )} */}
+
+        <div className="p-4 bg-slate-700/30 border border-slate-600 rounded-lg">
+          <WorkflowProgressIndicator stageProgress={stageProgress} />
+        </div>
+
+        {errors.length > 0 && (
+          <ErrorLogPanel errors={errors} onClearErrors={clearErrors} />
+        )}
+      </div>
+    )
   }
 
   const createdDate = parseISO(memo.createdAt)
@@ -81,7 +117,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold text-white">🎙️ Memo Details</h2>
+            <h2 className="text-2xl font-bold text-white">Memo Details</h2>
             <StatusBadge status={memo.status} processingTimeSeconds={processingTime} />
           </div>
           <p className="text-slate-400 text-sm">{timeAgo}</p>
@@ -93,44 +129,10 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
             className="text-slate-400 hover:text-white text-2xl"
             aria-label="Close"
           >
-            ✕
+            ×
           </button>
         )}
       </div>
-
-      {/* Connection Status Badge - Only visible when disconnected and task is processing */}
-      {connectionStatus !== 'connected' && memo.status === 'pending' && (
-        <ConnectionStatusBadge
-          status={connectionStatus}
-          isUsingFallback={isUsingFallback}
-        />
-      )}
-
-      {/* Workflow Progress Indicator - Show if processing */}
-      {memo.status === 'pending' && showProgressDetails && (
-        <div className="p-4 bg-slate-700/30 border border-slate-600 rounded-lg">
-          <div className="flex items-start justify-between mb-3">
-            <div></div>
-            <button
-              onClick={() => setShowProgressDetails(false)}
-              className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1 bg-slate-700 rounded"
-            >
-              Hide
-            </button>
-          </div>
-          <WorkflowProgressIndicator stageProgress={stageProgress} />
-        </div>
-      )}
-
-      {/* Show progress toggle if it was hidden */}
-      {memo.status === 'pending' && !showProgressDetails && (
-        <button
-          onClick={() => setShowProgressDetails(true)}
-          className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1 bg-slate-700/30 rounded border border-slate-600"
-        >
-          Show progress details
-        </button>
-      )}
 
       {/* Error Log Panel - Only show if there are errors */}
       {errors.length > 0 && (
@@ -141,12 +143,12 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
       {memo.transcription ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">📝 Transcription</h3>
+            <h3 className="text-lg font-semibold text-white">Transcription</h3>
             <button
               onClick={handleCopyTranscription}
               className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
             >
-              {copied ? '✓ Copied' : 'Copy'}
+              {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
           <div className="p-4 bg-slate-700/50 border border-slate-600 rounded-lg">
@@ -162,20 +164,20 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
       {/* Extracted Tasks */}
       {memo.processedTasks && memo.processedTasks.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-white">✓ Extracted Tasks</h3>
+          <h3 className="text-lg font-semibold text-white">Extracted Tasks</h3>
           <div className="space-y-2">
             {memo.processedTasks.map((task: ProcessedTask, idx: number) => (
               <div
                 key={idx}
                 className="p-4 bg-slate-700/50 border border-slate-600 rounded-lg"
               >
-                <p className="text-slate-100 font-semibold mb-1">✓ {task.task}</p>
+                <p className="text-slate-100 font-semibold mb-1">{task.task}</p>
                 {task.due && (
-                  <p className="text-slate-400 text-sm mb-1">📅 Due: {new Date(task.due).toLocaleDateString()}</p>
+                  <p className="text-slate-400 text-sm mb-1">Due: {new Date(task.due).toLocaleDateString()}</p>
                 )}
                 {task.generated_content && (
                   <div className="mt-2 pt-2 border-t border-slate-600">
-                    <p className="text-slate-300 text-sm">{task.generated_content}</p>
+                    <MarkdownContent content={task.generated_content} />
                   </div>
                 )}
               </div>
@@ -194,18 +196,20 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
 
       {/* Audio Player */}
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-white">🔊 Audio</h3>
-        <AudioPlayer taskId={taskId} />
+        <h3 className="text-lg font-semibold text-white">Audio</h3>
+        <AudioPlayer key={taskId} taskId={taskId} />
       </div>
 
       {/* Actions */}
       <div className="flex gap-2 pt-4 border-t border-slate-700">
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="px-4 py-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition font-semibold"
-        >
-          🗑️ Delete
-        </button>
+        {(memo.status === 'completed' || memo.status === 'failed') && (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition font-semibold"
+          >
+            Delete
+          </button>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}

@@ -37,19 +37,19 @@ export function ErrorLogPanel({ errors, onClearErrors }: ErrorLogPanelProps) {
 
   const stageLabel = (stage: string): string => {
     const labels: Record<string, string> = {
-      workflow: '🔄',
-      transcribe: '🎤',
-      extract: '📋',
-      generate: '✨',
-      db_update: '💾',
+      workflow: 'WF',
+      transcribe: 'TR',
+      extract: 'EX',
+      generate: 'GN',
+      db_update: 'DB',
     }
-    return labels[stage] || '⚠️'
+    return labels[stage] || '?'
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-red-400">⚠️ Errors</h4>
+        <h4 className="text-sm font-semibold text-red-400">Errors</h4>
         {errors.length > 0 && (
           <button
             onClick={onClearErrors}
@@ -83,7 +83,7 @@ export function ErrorLogPanel({ errors, onClearErrors }: ErrorLogPanelProps) {
                 onClick={() => handleCopy(error.message, idx)}
                 className="px-2 py-1 bg-red-500/20 text-red-300 rounded hover:bg-red-500/30 transition"
               >
-                {copiedIndex === idx ? '✓ Copied' : 'Copy'}
+                {copiedIndex === idx ? 'Copied' : 'Copy'}
               </button>
             </div>
           </div>

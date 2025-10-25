@@ -49,11 +49,11 @@ export function Dashboard() {
               onUploadSuccess={(taskId) => {
                 setUploadInProgress(false)
                 setSelectedMemoId(taskId)
-                setToastMessage('✅ Memo uploaded! Starting to process...')
+                setToastMessage('Memo uploaded! Starting to process...')
               }}
               onError={(error) => {
                 setUploadInProgress(false)
-                setToastMessage(`❌ ${error}`)
+                setToastMessage(`Error: ${error}`)
               }}
             />
           </section>
@@ -79,13 +79,12 @@ export function Dashboard() {
                 onClose={() => setSelectedMemoId(null)}
                 onDelete={() => {
                   setSelectedMemoId(null)
-                  setToastMessage('✅ Memo deleted')
+                  setToastMessage('Memo deleted')
                 }}
               />
             </section>
           ) : (
             <section className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 text-center py-12">
-              <p className="text-2xl mb-2">👈</p>
               <p className="text-slate-300 font-semibold mb-2">Select a memo to view details</p>
               <p className="text-slate-400 text-sm">
                 Record a new memo or click on an existing one to see the transcription and extracted tasks

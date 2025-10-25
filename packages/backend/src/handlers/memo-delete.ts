@@ -110,6 +110,19 @@ export async function handleDeleteMemo(
         }
       );
     }
+    // For simplicity, we can only delete once a worflow has completed or failed
+    if (task.status === 'pending'|| task.status === 'processing') {
+      return new Response(
+        JSON.stringify({
+          error: 'Conflict',
+          message: 'Cannot delete a memo while its still processing',
+        }),
+        {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     // Delete audio from R2 if it exists
     if (task.r2Key) {
@@ -119,7 +132,7 @@ export async function handleDeleteMemo(
         // Log the error but don't fail the request
         // Database deletion already succeeded, so memo is gone
         console.error(`Failed to delete audio from R2 (key: ${task.r2Key}):`, error);
-        // In production, might want to queue this for cleanup later
+        // might want to queue this for cleanup later
       }
     }
 

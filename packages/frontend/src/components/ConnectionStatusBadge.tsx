@@ -47,7 +47,7 @@ export function ConnectionStatusBadge({
     >
       <div className="flex items-center gap-2">
         <span className={status === 'reconnecting' ? 'animate-spin' : ''}>
-          {status === 'reconnecting' ? '⟳' : '✕'}
+          {status === 'reconnecting' ? '↻' : '○'}
         </span>
         <div className="text-sm font-semibold">
           {status === 'reconnecting' ? 'Reconnecting...' : 'Disconnected'}
@@ -62,7 +62,7 @@ export function ConnectionStatusBadge({
         className="text-xl opacity-50 hover:opacity-100 transition"
         aria-label="Dismiss"
       >
-        ✕
+        ×
       </button>
     </div>
   )

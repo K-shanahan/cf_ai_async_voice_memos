@@ -46,7 +46,6 @@ export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListPr
   if (!memos || memos.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-2xl mb-2">🎙️</p>
         <p className="text-slate-300 font-semibold mb-2">No memos yet</p>
         <p className="text-slate-400 text-sm">Record your first memo to get started</p>
       </div>
