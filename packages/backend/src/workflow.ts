@@ -63,15 +63,20 @@ function publishWorkflowUpdate(
   awaitConfirmation: boolean = false
 ): Promise<void> | void {
   const updatePayload = { ...update, taskId };
-  console.log(`[StatusUpdate] Publishing update for task ${taskId}:`, JSON.stringify(updatePayload));
+  console.log(`[StatusUpdate] 📤 Publishing update for task ${taskId}:`);
+  console.log(`  - stage: ${update.stage}`);
+  console.log(`  - status: ${update.status}`);
+  console.log(`  - overallStatus: ${update.overallStatus || 'undefined'}`);
+  console.log(`  - Full payload:`, JSON.stringify(updatePayload));
 
   const doId = env.TASK_STATUS_DO?.idFromName?.(taskId);
   if (!doId || !env.TASK_STATUS_DO?.get) {
     // If TASK_STATUS_DO is not available (e.g., in tests), silently skip
-    console.warn(`[StatusUpdate] TASK_STATUS_DO not available for task ${taskId}, skipping update`);
+    console.warn(`[StatusUpdate] ⚠️  TASK_STATUS_DO not available for task ${taskId}, skipping update`);
     return;
   }
 
+  console.log(`[StatusUpdate] 🎯 DO ID resolved for task ${taskId}`);
   const doStub = env.TASK_STATUS_DO.get(doId);
   const fetchPromise = doStub.fetch(
     new Request('https://do/publish', {
@@ -80,11 +85,11 @@ function publishWorkflowUpdate(
     })
   )
     .then(() => {
-      console.log(`[StatusUpdate] ✓ Published ${update.stage} ${update.status} for task ${taskId}`);
+      console.log(`[StatusUpdate] ✅ Published ${update.stage} ${update.status} for task ${taskId}`);
     })
     .catch((err) => {
       // Log errors but don't throw - status updates are non-critical
-      console.error(`[StatusUpdate] ✗ Failed to publish update for task ${taskId}:`, err);
+      console.error(`[StatusUpdate] ❌ Failed to publish update for task ${taskId}:`, err);
     });
 
   // Return the promise for critical updates, otherwise fire-and-forget

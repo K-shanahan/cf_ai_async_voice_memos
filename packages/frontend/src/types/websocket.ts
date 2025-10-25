@@ -15,6 +15,8 @@ export interface StatusUpdate {
   timestamp: number
   duration_ms?: number
   error_message?: string
+  overallStatus?: 'completed' | 'failed' // Final workflow status when workflow completes
+  transcription?: string // Transcription text (included when transcribe completes)
 }
 
 export interface HistoryMessage {
@@ -29,7 +31,7 @@ export interface StageProgress {
   transcribe: StageStatus
   extract: StageStatus
   generate: StageStatus
-  db_update: StageStatus
+  // db_update is internal-only, not exposed to UI
 }
 
 export interface WorkflowError {

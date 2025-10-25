@@ -10,7 +10,6 @@ import { DeleteConfirmation } from './DeleteConfirmation'
 import { StatusBadge } from './StatusBadge'
 import { WorkflowProgressIndicator } from './WorkflowProgressIndicator'
 import { ErrorLogPanel } from './ErrorLogPanel'
-import { ConnectionStatusBadge } from './ConnectionStatusBadge'
 import { MarkdownContent } from './MarkdownContent'
 import { ProcessedTask } from '../types/api'
 import { formatDistanceToNow, parseISO } from 'date-fns'
@@ -25,12 +24,9 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
   const {
     memo,
     isLoading,
-    error,
     stageProgress,
     errors,
     clearErrors,
-    connectionStatus,
-    isUsingFallback,
   } = useWebSocketMemo(taskId)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -45,21 +41,12 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     )
   }
 
-  if (error) {
-    return (
-      <div className="p-4 bg-red-500/10 border border-red-500 rounded-lg">
-        <p className="text-red-400 font-semibold mb-2">Failed to load memo</p>
-        <p className="text-red-300 text-sm">{error.message}</p>
-      </div>
-    )
-  }
-
   if (!memo) {
     return null
   }
 
-  // If memo is still pending, show only the timeline
-  if (memo.status === 'pending') {
+  // If memo is still pending/processing, show only the timeline
+  if (memo.status === 'pending' || memo.status === 'processing') {
     return (
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
@@ -74,13 +61,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
             </button>
           )}
         </div>
-
-        {/* {connectionStatus !== 'connected' && (
-          <ConnectionStatusBadge
-            status={connectionStatus}
-            isUsingFallback={isUsingFallback}
-          />
-        )} */}
 
         <div className="p-4 bg-slate-700/30 border border-slate-600 rounded-lg">
           <WorkflowProgressIndicator stageProgress={stageProgress} />

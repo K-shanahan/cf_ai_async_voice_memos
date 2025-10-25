@@ -10,24 +10,16 @@ import { StageProgress } from '../types/websocket'
 
 interface WorkflowProgressIndicatorProps {
   stageProgress: StageProgress
-  stageDurations?: {
-    transcribe?: number
-    extract?: number
-    generate?: number
-    db_update?: number
-  }
 }
 
 export function WorkflowProgressIndicator({
   stageProgress,
-  stageDurations = {},
 }: WorkflowProgressIndicatorProps) {
   const stages = [
     { key: 'upload' as const, label: 'Upload' },
     { key: 'transcribe' as const, label: 'Transcribe' },
     { key: 'extract' as const, label: 'Extract' },
     { key: 'generate' as const, label: 'Generate' },
-    { key: 'db_update' as const, label: 'Save' },
   ]
 
   // Determine the last completed stage index
@@ -42,14 +34,6 @@ export function WorkflowProgressIndicator({
     return lastCompleted
   }
 
-  // Determine the current active stage index
-  const getCurrentActiveIndex = () => {
-    return stages.findIndex((stage) => {
-      const status = stage.key === 'upload' ? 'completed' : stageProgress[stage.key as keyof StageProgress]
-      return status === 'started'
-    })
-  }
-
   // Determine if a stage is pending and queued (comes after last completed)
   const getQueuedPendingIndex = () => {
     const lastCompleted = getLastCompletedIndex()
@@ -60,7 +44,6 @@ export function WorkflowProgressIndicator({
   }
 
   const lastCompletedIdx = getLastCompletedIndex()
-  const currentActiveIdx = getCurrentActiveIndex()
   const queuedPendingIdx = getQueuedPendingIndex()
 
   const getDotColor = (index: number, status: string) => {
@@ -154,7 +137,7 @@ export function WorkflowProgressIndicator({
 
       {/* Status message */}
       <div className="text-sm mt-4 min-h-6">
-        {stageProgress.db_update === 'completed' && (
+        {stageProgress.generate === 'completed' && (
           <p className="text-green-400 font-semibold animate-fade-in">✓ Workflow complete!</p>
         )}
         {Object.values(stageProgress).some((s) => s === 'failed') && (
@@ -171,9 +154,6 @@ export function WorkflowProgressIndicator({
         )}
         {stageProgress.generate === 'started' && (
           <p className="text-blue-300 font-medium animate-fade-in">◆ Generating content for tasks...</p>
-        )}
-        {stageProgress.db_update === 'started' && (
-          <p className="text-blue-300 font-medium animate-fade-in">◆ Saving results to database...</p>
         )}
       </div>
     </div>
