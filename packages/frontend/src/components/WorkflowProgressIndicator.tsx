@@ -106,7 +106,7 @@ export function WorkflowProgressIndicator({
               <div className="flex items-center w-full">
                 {/* Connecting line from previous stage */}
                 {idx > 0 && (
-                  <div className={`flex-1 h-1.5 rounded-full ${getLineColor(idx - 1)} transition-all duration-300`}></div>
+                  <div className={`flex-1 h-1.5 ${getLineColor(idx - 1)} transition-all duration-300`}></div>
                 )}
 
                 {/* Dot */}
@@ -144,7 +144,7 @@ export function WorkflowProgressIndicator({
 
                 {/* Connecting line to next stage */}
                 {idx < stages.length - 1 && (
-                  <div className={`flex-1 h-1.5 rounded-full ${getLineColor(idx)} transition-all duration-300`}></div>
+                  <div className={`flex-1 h-1.5 ${getLineColor(idx)} transition-all duration-300`}></div>
                 )}
               </div>
             </div>

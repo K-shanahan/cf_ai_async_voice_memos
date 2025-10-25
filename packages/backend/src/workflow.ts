@@ -5,7 +5,7 @@
 
 import type { MockWorkerContext } from './test-utils';
 import type { StatusUpdate } from './durable-objects/task-status-do';
-import { updateTaskResults, updateTaskError } from './db';
+import { updateTaskResults, updateTaskError, updateTaskTranscription } from './db';
 import { transcribeAudio } from './workflow/transcribe';
 import { extractTasks, type ProcessedTask } from './workflow/extract';
 import { generateTaskContent } from './workflow/generate';
@@ -108,6 +108,13 @@ export async function processAudioWorkflow(
   try {
     // Step 1: Get transcription (either provided or retrieve audio and transcribe)
     let transcription = input.transcription;
+
+    // If transcription is provided, save it immediately
+    if (transcription) {
+      await updateTaskTranscription(context.env.DB, taskId, transcription);
+      console.log(`[Transcription] Saved provided transcription to database for task ${taskId}`);
+    }
+
     if (!transcription) {
       const transcribeStartTime = performance.now();
 
@@ -127,6 +134,11 @@ export async function processAudioWorkflow(
         transcription = await transcribeAudio(audioBuffer, context.env);
 
         const transcribeDuration = performance.now() - transcribeStartTime;
+
+        // Save transcription to database immediately so it's not lost if workflow fails later
+        await updateTaskTranscription(context.env.DB, taskId, transcription);
+        console.log(`[Transcription] Saved to database for task ${taskId}`);
+
         await logPipelineEvent(context.env.ANALYTICS, {
           timestamp: Date.now(),
           taskId,
@@ -141,7 +153,8 @@ export async function processAudioWorkflow(
           stage: 'transcribe',
           status: 'completed',
           duration_ms: Math.round(transcribeDuration),
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          transcription
         }, context.env);
       } catch (error) {
         const transcribeDuration = performance.now() - transcribeStartTime;
@@ -166,7 +179,8 @@ export async function processAudioWorkflow(
           stage: 'transcribe',
           status: 'failed',
           error_message: errorMessage,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          overallStatus: 'failed'
         }, context.env);
 
         throw new Error(`Failed to transcribe audio: ${errorMessage}`);
@@ -229,7 +243,8 @@ export async function processAudioWorkflow(
           stage: 'extract',
           status: 'failed',
           error_message: errorMessage,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          overallStatus: 'failed'
         }, context.env);
 
         throw new Error(`Failed to extract tasks: ${errorMessage}`);
@@ -346,7 +361,8 @@ export async function processAudioWorkflow(
         stage: 'db_update',
         status: 'completed',
         duration_ms: Math.round(dbUpdateDuration),
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        overallStatus: 'completed'
       }, context.env, true);
       console.log(`[DBUpdate] ✓ Completion message published for ${taskId}`);
     } catch (dbError) {
@@ -374,7 +390,8 @@ export async function processAudioWorkflow(
         stage: 'db_update',
         status: 'failed',
         error_message: errorMessage,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        overallStatus: 'failed'
       }, context.env);
 
       throw dbError;

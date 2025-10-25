@@ -15,6 +15,8 @@ export interface StatusUpdate {
   timestamp: number; // unix ms
   duration_ms?: number; // only for completed events
   error_message?: string; // only for failed events
+  overallStatus?: 'processing' | 'completed' | 'failed'; // overall workflow status
+  transcription?: string; // transcription text (included when transcribe completes)
 }
 
 export class TaskStatusDO {

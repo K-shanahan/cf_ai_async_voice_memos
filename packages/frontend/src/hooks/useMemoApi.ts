@@ -30,13 +30,13 @@ export const MEMO_QUERY_KEYS = {
 
 /**
  * Fetch list of all memos for current user
- * Polls with staleTime: 30 seconds
+ * Enables polling to show real-time updates of memo completion
  * Gets fresh token from Clerk for each request
  */
 export function useMemoList(limit: number = 100, offset: number = 0) {
   const { getToken, isLoaded, isSignedIn } = useAuth()
 
-  return useQuery<MemoSummary[], ApiError>({
+  const memoList = useQuery<MemoSummary[], ApiError>({
     queryKey: MEMO_QUERY_KEYS.list(limit, offset),
     queryFn: async () => {
       const token = await getToken()
@@ -52,10 +52,21 @@ export function useMemoList(limit: number = 100, offset: number = 0) {
     },
     // Only fetch when Clerk is loaded and user is signed in
     enabled: isLoaded && isSignedIn,
-    staleTime: 30000, // 30 seconds
+    staleTime: 5000, // 5 seconds
+    // Poll every 3 seconds to show real-time updates when memos are processing
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
     retry: 2,
-    // Don't refetch on window focus in this MVP
   })
+
+  // Check if there are any pending memos
+  const hasPendingMemos = memoList.data?.some(memo => memo.status === 'pending' || memo.status === 'processing')
+
+  return {
+    ...memoList,
+    // Only poll if there are pending memos, otherwise disable polling
+    refetchInterval: hasPendingMemos ? 3000 : false,
+  }
 }
 
 /**

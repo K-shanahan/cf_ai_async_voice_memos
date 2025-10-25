@@ -74,6 +74,24 @@ export async function updateTaskStatus(
 }
 
 /**
+ * Update task with transcription only (save as soon as available)
+ */
+export async function updateTaskTranscription(
+  db: D1Database,
+  taskId: string,
+  transcription: string
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  const query = `UPDATE tasks SET transcription = ?, updatedAt = ? WHERE taskId = ?`;
+
+  await db
+    .prepare(query)
+    .bind(transcription, now, taskId)
+    .run();
+}
+
+/**
  * Update task with transcription and processed tasks
  */
 export async function updateTaskResults(

@@ -35,7 +35,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [showProgressDetails, setShowProgressDetails] = useState(true)
 
   if (isLoading) {
     return (

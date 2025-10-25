@@ -48,6 +48,7 @@ export function useWebSocketMemo(taskId: string) {
   const [errors, setErrors] = useState<WorkflowError[]>([])
   const [useFallbackPolling, setUseFallbackPolling] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [realtimeTranscription, setRealtimeTranscription] = useState<string | null>(null)
 
   // Get memo data via polling (fallback mechanism)
   const pollingQuery = useMemoDetail(taskId)
@@ -147,6 +148,12 @@ export function useWebSocketMemo(taskId: string) {
       console.log(`[WebSocket:${taskId}] Ignoring stage "${update.stage}" (not a tracked stage)`)
     }
 
+    // Store transcription when transcribe stage completes
+    if (update.stage === 'transcribe' && update.status === 'completed' && update.transcription) {
+      console.log(`[WebSocket:${taskId}] ✓ Transcription received via WebSocket (${update.transcription.length} chars)`)
+      setRealtimeTranscription(update.transcription)
+    }
+
     // Track errors
     if (update.status === 'failed' && update.error_message) {
       console.warn(
@@ -162,9 +169,9 @@ export function useWebSocketMemo(taskId: string) {
       ])
     }
 
-    // When db_update completes, invalidate cache and close WebSocket
-    if (update.stage === 'db_update' && update.status === 'completed') {
-      console.log(`[WebSocket:${taskId}] ✓ DB_UPDATE COMPLETED - Refetching memo list and detail`)
+    // When workflow completes or fails, invalidate cache and close WebSocket
+    if (update.overallStatus === 'completed' || update.overallStatus === 'failed') {
+      console.log(`[WebSocket:${taskId}] ✓ WORKFLOW ${update.overallStatus.toUpperCase()} - Refetching memo list and detail`)
       // Mark that we're intentionally closing due to completion
       intentionallyClosed.current = true
       // Refetch to get complete data from database
@@ -188,7 +195,7 @@ export function useWebSocketMemo(taskId: string) {
       })
       // Close WebSocket since processing is complete
       if (wsRef.current) {
-        console.log(`[WebSocket:${taskId}] Closing WebSocket (task completed)`)
+        console.log(`[WebSocket:${taskId}] Closing WebSocket (task ${update.overallStatus})`)
         wsRef.current.close()
         wsRef.current = null
       }
@@ -223,6 +230,7 @@ export function useWebSocketMemo(taskId: string) {
 
     // Rebuild state from history
     const newErrors: WorkflowError[] = []
+    let newTranscription: string | null = null
 
     for (const update of updates) {
       if (update.taskId !== taskId) {
@@ -242,6 +250,11 @@ export function useWebSocketMemo(taskId: string) {
         newProgress[update.stage] = update.status === 'failed' ? 'failed' : update.status
       }
 
+      // Extract transcription from history if available
+      if (update.stage === 'transcribe' && update.status === 'completed' && update.transcription) {
+        newTranscription = update.transcription
+      }
+
       if (update.status === 'failed' && update.error_message) {
         newErrors.push({
           stage: update.stage,
@@ -253,6 +266,9 @@ export function useWebSocketMemo(taskId: string) {
 
     setStageProgress(newProgress)
     setErrors(newErrors)
+    if (newTranscription) {
+      setRealtimeTranscription(newTranscription)
+    }
     setIsInitialized(true)
   }, [taskId])
 
@@ -357,11 +373,25 @@ export function useWebSocketMemo(taskId: string) {
     }
   }, [taskId, getToken, handleMessage, useFallbackPolling, attemptReconnect, isTaskComplete])
 
-  // Establish WebSocket connection on mount (skip if task already complete)
+  // Reset state when taskId changes
   useEffect(() => {
     // Reset the intentionally closed flag when the taskId changes
     intentionallyClosed.current = false
 
+    // Reset error and progress state for the new memo
+    setErrors([])
+    setStageProgress({
+      transcribe: 'pending',
+      extract: 'pending',
+      generate: 'pending',
+      db_update: 'pending',
+    })
+    setIsInitialized(false)
+    setRealtimeTranscription(null)
+  }, [taskId])
+
+  // Establish WebSocket connection on mount (skip if task already complete)
+  useEffect(() => {
     // Wait for memo data to load before deciding whether to connect
     if (pollingQuery.isLoading) {
       return
@@ -384,7 +414,7 @@ export function useWebSocketMemo(taskId: string) {
         clearTimeout(reconnectTimeoutRef.current)
       }
     }
-  }, [connectWebSocket, taskId, isTaskComplete, pollingQuery.isLoading])
+  }, [connectWebSocket, isTaskComplete, pollingQuery.isLoading])
 
   // Close WebSocket when task completes - no need to keep connection open
   useEffect(() => {
@@ -404,12 +434,17 @@ export function useWebSocketMemo(taskId: string) {
     generate: stageProgress.generate,
   }
 
+  // Merge real-time transcription with memo data (prefer real-time version if available)
+  const memoWithRealtimeData = memo
+    ? { ...memo, transcription: realtimeTranscription ?? memo.transcription }
+    : null
+
   // Determine overall loading state - wait for initialization if pending
   const isLoading = !memo || !isInitialized || (connectionStatus === 'disconnected' && pollingQuery.isLoading)
 
   return {
     // Memo data
-    memo,
+    memo: memoWithRealtimeData,
     status: memo?.status || 'pending',
 
     // WebSocket status
