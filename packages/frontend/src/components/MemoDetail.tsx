@@ -30,7 +30,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [isLoadingWithMinimum, setIsLoadingWithMinimum] = useState(false)
 
   // Fetch full memo details (including processedTasks) when memo is selected
   const { data: detailedMemo, isLoading: isLoadingDetails } = useQuery<MemoDetailResponse>({
@@ -43,20 +42,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     enabled: !!taskId,
     staleTime: Infinity,
   })
-
-  // Enforce minimum loading time for smoother UX
-  useEffect(() => {
-    if (isLoadingDetails) {
-      setIsLoadingWithMinimum(true)
-      const timer = setTimeout(() => {
-        setIsLoadingWithMinimum(false)
-      }, 500) // Minimum 500ms loading state
-      return () => clearTimeout(timer)
-    } else if (detailedMemo) {
-      // If data has loaded, ensure loading state is false
-      setIsLoadingWithMinimum(false)
-    }
-  }, [isLoadingDetails, detailedMemo])
 
   // Merge state memo (with real-time updates) with detailed memo (with full data)
   const displayMemo = memo ? {
@@ -82,11 +67,20 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     }
   }, [taskId, startMonitoring, stopMonitoring])
 
-  if (!displayMemo) {
+  // Show loading skeleton while waiting for detailed memo
+  if (isLoadingDetails || !displayMemo) {
     return (
       <div className="space-y-4">
         <div className="h-8 bg-slate-700/50 rounded animate-pulse w-1/3"></div>
         <div className="h-20 bg-slate-700/50 rounded animate-pulse"></div>
+        <div className="space-y-2">
+          <div className="h-6 bg-slate-700/50 rounded animate-pulse w-1/4"></div>
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 bg-slate-700/50 border border-slate-600 rounded-lg animate-pulse"></div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -191,16 +185,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
       )}
 
       {/* Extracted Tasks */}
-      {isLoadingWithMinimum ? (
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-white">Extracted Tasks</h3>
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-slate-700/50 border border-slate-600 rounded-lg animate-pulse"></div>
-            ))}
-          </div>
-        </div>
-      ) : displayMemo.processedTasks && displayMemo.processedTasks.length > 0 ? (
+      {displayMemo.processedTasks && displayMemo.processedTasks.length > 0 ? (
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-white">Extracted Tasks</h3>
           <div className="space-y-2">
@@ -221,10 +206,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
               </div>
             ))}
           </div>
-        </div>
-      ) : displayMemo.status === 'completed' ? (
-        <div className="p-4 bg-slate-700/50 border border-slate-600 rounded-lg">
-          <p className="text-slate-400 text-sm">No tasks extracted from this memo</p>
         </div>
       ) : null}
 
