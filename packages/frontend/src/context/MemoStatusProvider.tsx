@@ -10,7 +10,6 @@ import { MEMO_QUERY_KEYS } from '../hooks/useMemoApi'
 const API_BASE_URL = import.meta.env.VITE_WORKER_URL || 'http://localhost:8787'
 const INITIAL_BACKOFF_MS = 1000
 const MAX_BACKOFF_MS = 30000
-const DEBUG = import.meta.env.DEV
 
 interface WebSocketConnection {
   ws: WebSocket | null
@@ -76,17 +75,6 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialMemos])
 
-  const log = useCallback((msg: string, data?: any) => {
-    if (DEBUG) {
-      console.log(`[MemoStatusProvider] ${msg}`, data || '')
-    }
-  }, [])
-
-  const logError = useCallback((msg: string, data?: any) => {
-    if (DEBUG) {
-      console.error(`[MemoStatusProvider] ${msg}`, data || '')
-    }
-  }, [])
 
   // Handle incoming WebSocket message
   const handleWebSocketMessage = useCallback((taskId: string, event: MessageEvent) => {
@@ -95,19 +83,16 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
 
     try {
       if (connection.taskCompleted) {
-        log(`⏭️  [${taskId}] Ignoring message after task completion`)
         return
       }
 
       if (!event.data) {
-        logError(`[${taskId}] Received empty message`)
         return
       }
 
       const data = JSON.parse(event.data) as unknown
 
       if (typeof data !== 'object' || data === null) {
-        logError(`[${taskId}] Received non-object message`)
         return
       }
 
@@ -116,7 +101,6 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
       if (dataObj.type === 'history') {
         // Process history message
         const historyMsg = data as HistoryMessage
-        log(`📥 [${taskId}] History message: ${historyMsg.updates.length} updates`)
 
         // Process each update in history
         for (const update of historyMsg.updates) {
@@ -132,10 +116,8 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
       } else if (dataObj.stage && dataObj.status) {
         // Single status update
         const update = data as StatusUpdate
-        log(`📥 [${taskId}] Update: ${update.stage} ${update.status}`)
 
         if (update.taskId !== taskId) {
-          logError(`[${taskId}] TASKID MISMATCH! Expected ${taskId}, got ${update.taskId}`)
           return
         }
 
@@ -146,7 +128,6 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
 
         // Handle workflow completion
         if (update.overallStatus === 'completed' || update.overallStatus === 'failed') {
-          log(`✓ [${taskId}] Workflow ${update.overallStatus.toUpperCase()}`)
           connection.taskCompleted = true
 
           // Invalidate and refetch caches
@@ -169,27 +150,22 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
                 queryKey: MEMO_QUERY_KEYS.lists(),
                 exact: false,
               })
-
-              log(`✓ [${taskId}] Cache refetch complete`)
             } catch (error) {
-              logError(`[${taskId}] Cache refetch error`, error)
+              // Silently fail
             }
           })()
 
           // Close WebSocket
           const ws = connectionsRef.current.get(taskId)?.ws
           if (ws) {
-            log(`[${taskId}] Closing WebSocket`)
             ws.close()
           }
         }
-      } else {
-        logError(`[${taskId}] Unrecognized message format`)
       }
     } catch (error) {
-      logError(`[${taskId}] Parse error`, error)
+      // Silently fail
     }
-  }, [dispatch, queryClient, log, logError])
+  }, [dispatch, queryClient])
 
   const getBackoffDelay = useCallback((reconnectAttempts: number) => {
     return Math.min(
@@ -201,27 +177,22 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
   // Connect WebSocket for a specific memo
   const connectWebSocket = useCallback(async (taskId: string) => {
     if (!isLoaded || !isSignedIn) {
-      log(`[${taskId}] Not authenticated, skipping connection`)
       return
     }
 
     const memo = state.memos[taskId]
     if (!memo) {
-      log(`[${taskId}] Memo not found in state`)
       return
     }
 
     // Don't connect if already complete
     if (memo.status === 'completed' || memo.status === 'failed') {
-      log(`[${taskId}] Memo already ${memo.status}, skipping connection`)
       return
     }
 
     try {
-      log(`[${taskId}] Attempting WebSocket connection`)
       const token = await getToken()
       if (!token) {
-        logError(`[${taskId}] No auth token`)
         return
       }
 
@@ -238,7 +209,6 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
       }
 
       ws.onopen = () => {
-        log(`✓ [${taskId}] Connected`)
         connection.reconnectAttempts = 0
         connection.ws = ws
         connectionsRef.current.set(taskId, connection)
@@ -247,18 +217,15 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
       ws.onmessage = (event) => handleWebSocketMessage(taskId, event)
 
       ws.onclose = () => {
-        log(`[${taskId}] Connection closed`)
         connection.ws = null
 
         const updatedConnection = connectionsRef.current.get(taskId)
         if (updatedConnection?.taskCompleted || updatedConnection?.intentionallyClosed) {
-          log(`[${taskId}] Task complete or intentional close, not reconnecting`)
           return
         }
 
         if (updatedConnection && updatedConnection.reconnectAttempts === 0) {
           const delay = getBackoffDelay(updatedConnection.reconnectAttempts)
-          log(`[${taskId}] Reconnecting in ${delay}ms`)
 
           updatedConnection.reconnectAttempts++
           updatedConnection.reconnectTimeout = setTimeout(() => {
@@ -268,14 +235,13 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
         }
       }
 
-      ws.onerror = (error) => {
-        logError(`[${taskId}] WebSocket error`, error)
+      ws.onerror = () => {
+        // Silently fail
       }
 
       connection.ws = ws
       connectionsRef.current.set(taskId, connection)
     } catch (error) {
-      logError(`[${taskId}] Connection error`, error)
       const connection = connectionsRef.current.get(taskId)
       if (connection) {
         const delay = getBackoffDelay(connection.reconnectAttempts)
@@ -286,12 +252,10 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
         connectionsRef.current.set(taskId, connection)
       }
     }
-  }, [state.memos, isLoaded, isSignedIn, getToken, handleWebSocketMessage, getBackoffDelay, log, logError])
+  }, [state.memos, isLoaded, isSignedIn, getToken, handleWebSocketMessage, getBackoffDelay])
 
   // Start monitoring a memo (open WebSocket)
   const startMonitoring = useCallback((taskId: string) => {
-    log(`[${taskId}] Starting to monitor`)
-
     // Ensure connection tracking exists
     if (!connectionsRef.current.has(taskId)) {
       connectionsRef.current.set(taskId, {
@@ -304,27 +268,25 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
     }
 
     connectWebSocket(taskId)
-  }, [connectWebSocket, log])
+  }, [connectWebSocket])
 
   // Stop monitoring a memo (close WebSocket)
   const stopMonitoring = useCallback((taskId: string) => {
-    log(`[${taskId}] Stopping monitoring`)
-
     const connection = connectionsRef.current.get(taskId)
     if (connection) {
       connection.intentionallyClosed = true
 
-      if (connection.ws) {
+      if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
         connection.ws.close()
-        connection.ws = null
       }
+      connection.ws = null
 
       if (connection.reconnectTimeout) {
         clearTimeout(connection.reconnectTimeout)
         connection.reconnectTimeout = null
       }
     }
-  }, [log])
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
