@@ -138,6 +138,11 @@ export async function processAudioWorkflow(
 
         transcription = await transcribeAudio(audioBuffer, context.env);
 
+        // Check if transcription is empty (no speech detected)
+        if (!transcription || transcription.trim().length === 0) {
+          throw new Error('No speech detected in audio');
+        }
+
         const transcribeDuration = performance.now() - transcribeStartTime;
 
         // Save transcription to database immediately so it's not lost if workflow fails later
@@ -183,12 +188,12 @@ export async function processAudioWorkflow(
         publishWorkflowUpdate(taskId, {
           stage: 'transcribe',
           status: 'failed',
-          error_message: errorMessage,
+          error_message: 'No speech detected in audio',
           timestamp: Date.now(),
           overallStatus: 'failed'
         }, context.env);
 
-        throw new Error(`Failed to transcribe audio: ${errorMessage}`);
+        throw new Error('No speech detected in audio');
       }
     }
 
@@ -229,6 +234,8 @@ export async function processAudioWorkflow(
         const extractDuration = performance.now() - extractStartTime;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
+        console.warn(`[Extraction] Failed to extract tasks from transcription: ${errorMessage}. Continuing with empty tasks.`);
+
         try {
           await logPipelineEvent(context.env.ANALYTICS, {
             timestamp: Date.now(),
@@ -243,16 +250,16 @@ export async function processAudioWorkflow(
           console.warn('[Analytics] Failed to log extract error:', analyticsError);
         }
 
-        // Notify clients that extraction failed (fire-and-forget)
+        // Notify clients that extraction failed, but we'll complete without tasks (fire-and-forget)
         publishWorkflowUpdate(taskId, {
           stage: 'extract',
           status: 'failed',
           error_message: errorMessage,
-          timestamp: Date.now(),
-          overallStatus: 'failed'
+          timestamp: Date.now()
         }, context.env);
 
-        throw new Error(`Failed to extract tasks: ${errorMessage}`);
+        // Continue with empty tasks instead of failing
+        processedTasks = [];
       }
     }
 

@@ -1,6 +1,6 @@
 /**
  * MemoDetail - Full memo view with transcription, tasks, and actions
- * Real-time updates via WebSocket with fallback to polling
+ * Real-time updates via WebSocket
  */
 
 import { useState } from 'react'
@@ -9,7 +9,6 @@ import { AudioPlayer } from './AudioPlayer'
 import { DeleteConfirmation } from './DeleteConfirmation'
 import { StatusBadge } from './StatusBadge'
 import { WorkflowProgressIndicator } from './WorkflowProgressIndicator'
-import { ErrorLogPanel } from './ErrorLogPanel'
 import { MarkdownContent } from './MarkdownContent'
 import { ProcessedTask } from '../types/api'
 import { formatDistanceToNow, parseISO } from 'date-fns'
@@ -26,7 +25,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     isLoading,
     stageProgress,
     errors,
-    clearErrors,
   } = useWebSocketMemo(taskId)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -65,10 +63,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         <div className="p-4 bg-slate-700/30 border border-slate-600 rounded-lg">
           <WorkflowProgressIndicator stageProgress={stageProgress} />
         </div>
-
-        {errors.length > 0 && (
-          <ErrorLogPanel errors={errors} onClearErrors={clearErrors} />
-        )}
       </div>
     )
   }
@@ -80,6 +74,10 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         (new Date(memo.updatedAt).getTime() - new Date(memo.createdAt).getTime()) / 1000
       )
     : undefined
+
+  // Check if this is a "no speech detected" error
+  const hasNoSpeechError = errors.length > 0 && errors.some(e => e.message.toLowerCase().includes('no speech'))
+  const statusLabel = hasNoSpeechError ? 'No speech detected' : undefined
 
   const handleCopyTranscription = () => {
     if (memo.transcription) {
@@ -96,7 +94,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-2xl font-bold text-white">Memo Details</h2>
-            <StatusBadge status={memo.status} processingTimeSeconds={processingTime} />
+            <StatusBadge status={memo.status} processingTimeSeconds={processingTime} customLabel={statusLabel} />
           </div>
           <p className="text-slate-400 text-sm">{timeAgo}</p>
         </div>
@@ -112,13 +110,15 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         )}
       </div>
 
-      {/* Error Log Panel - Only show if there are errors */}
-      {errors.length > 0 && (
-        <ErrorLogPanel errors={errors} onClearErrors={clearErrors} />
+      {/* No Speech Detected Error */}
+      {errors.length > 0 && errors.some(e => e.message.toLowerCase().includes('no speech')) && (
+        <div className="p-4 bg-red-500/10 border border-red-500 rounded-lg">
+          <p className="text-red-400 text-sm font-semibold">No speech detected in audio</p>
+        </div>
       )}
 
       {/* Transcription */}
-      {memo.transcription ? (
+      {memo.transcription && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white">Transcription</h3>
@@ -132,10 +132,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
           <div className="p-4 bg-slate-700/50 border border-slate-600 rounded-lg">
             <p className="text-slate-100 text-sm leading-relaxed">{memo.transcription}</p>
           </div>
-        </div>
-      ) : (
-        <div className="p-4 bg-yellow-500/10 border border-yellow-500 rounded-lg">
-          <p className="text-yellow-400 text-sm">Transcription not yet available. Still processing...</p>
         </div>
       )}
 
@@ -166,11 +162,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         <div className="p-4 bg-slate-700/50 border border-slate-600 rounded-lg">
           <p className="text-slate-400 text-sm">No tasks extracted from this memo</p>
         </div>
-      ) : (
-        <div className="p-4 bg-blue-500/10 border border-blue-500 rounded-lg">
-          <p className="text-blue-400 text-sm">Tasks will appear here once processing is complete</p>
-        </div>
-      )}
+      ) : null}
 
       {/* Audio Player */}
       <div className="space-y-2">

@@ -5,9 +5,10 @@
 interface StatusBadgeProps {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   processingTimeSeconds?: number
+  customLabel?: string
 }
 
-export function StatusBadge({ status, processingTimeSeconds }: StatusBadgeProps) {
+export function StatusBadge({ status, processingTimeSeconds, customLabel }: StatusBadgeProps) {
   const configs = {
     pending: {
       bg: 'bg-yellow-500/20',
@@ -32,10 +33,11 @@ export function StatusBadge({ status, processingTimeSeconds }: StatusBadgeProps)
   }
 
   const config = configs[status]
+  const label = customLabel || config.label
 
   return (
     <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${config.bg}`}>
-      <span className={`text-sm font-semibold ${config.text}`}>{config.label}</span>
+      <span className={`text-sm font-semibold ${config.text}`}>{label}</span>
       {processingTimeSeconds && (
         <span className={`text-xs ${config.text}`}>({processingTimeSeconds}s)</span>
       )}

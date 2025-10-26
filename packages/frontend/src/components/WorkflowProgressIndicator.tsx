@@ -4,8 +4,10 @@
  * Displays: Upload → Transcribe → Extract → Generate
  * Shows a horizontal timeline with colored dots and connecting lines
  * Features smooth animations and visual hierarchy for better UX
+ * Collapsible by default - click dropdown to expand
  */
 
+import { useState } from 'react'
 import { StageProgress } from '../types/websocket'
 
 interface WorkflowProgressIndicatorProps {
@@ -15,6 +17,7 @@ interface WorkflowProgressIndicatorProps {
 export function WorkflowProgressIndicator({
   stageProgress,
 }: WorkflowProgressIndicatorProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
   const stages = [
     { key: 'upload' as const, label: 'Upload' },
     { key: 'transcribe' as const, label: 'Transcribe' },
@@ -63,11 +66,20 @@ export function WorkflowProgressIndicator({
   }
 
   return (
-    <div className="space-y-6 p-4 rounded-lg bg-gradient-to-br from-slate-800/30 to-slate-900/30 border border-slate-700/50 backdrop-blur-sm">
-      {/* Header */}
-      <h4 className="text-base font-bold text-slate-100 tracking-wide">Processing Progress</h4>
+    <div className="space-y-4 p-4 rounded-lg bg-gradient-to-br from-slate-800/30 to-slate-900/30 border border-slate-700/50 backdrop-blur-sm">
+      {/* Collapsible Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between hover:opacity-80 transition-opacity"
+      >
+        <h4 className="text-base font-bold text-slate-100 tracking-wide">Processing Progress</h4>
+        <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+          ▼
+        </span>
+      </button>
 
-      {/* Timeline */}
+      {/* Timeline - only show when expanded */}
+      {isExpanded && (
       <div className="flex items-end gap-0">
         {stages.map(({ key, label }, idx) => {
           const status = key === 'upload' ? 'completed' : stageProgress[key as keyof StageProgress]
@@ -134,9 +146,10 @@ export function WorkflowProgressIndicator({
           )
         })}
       </div>
+      )}
 
-      {/* Status message */}
-      <div className="text-sm mt-4 min-h-6">
+      {/* Status message - always visible */}
+      <div className="text-sm min-h-6">
         {stageProgress.generate === 'completed' && (
           <p className="text-green-400 font-semibold animate-fade-in">✓ Workflow complete!</p>
         )}
