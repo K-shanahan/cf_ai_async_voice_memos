@@ -19,7 +19,7 @@ interface WebSocketConnection {
   taskCompleted: boolean
 }
 
-interface MemoStatusContextType {
+export interface MemoStatusContextType {
   state: GlobalMemoState
   dispatch: React.Dispatch<MemoAction>
   processingMemos: MemoStateItem[]
@@ -157,7 +157,7 @@ export function MemoStatusProvider({ children }: MemoStatusProviderProps) {
 
           // Close WebSocket
           const ws = connectionsRef.current.get(taskId)?.ws
-          if (ws) {
+          if (ws && ws.OPEN) {
             ws.close()
           }
         }

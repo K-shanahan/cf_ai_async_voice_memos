@@ -32,14 +32,16 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
           ),
           li: ({ children }) => <li className="text-slate-100">{children}</li>,
           p: ({ children }) => <p className="mb-2 text-slate-100 leading-relaxed">{children}</p>,
-          code: ({ children, inline }) =>
-            inline ? (
+          code: ({ children, className }) => {
+            const isInline = !className?.includes('language-')
+            return isInline ? (
               <code className="bg-slate-700/50 px-1.5 py-0.5 rounded text-xs text-slate-100 font-mono">
                 {children}
               </code>
             ) : (
               <code className="text-slate-100 font-mono">{children}</code>
-            ),
+            )
+          },
           pre: ({ children }) => (
             <pre className="bg-slate-700/50 p-3 rounded mb-2 overflow-x-auto border border-slate-600">
               {children}
