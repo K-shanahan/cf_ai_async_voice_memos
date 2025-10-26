@@ -13,12 +13,12 @@ export function StatusBadge({ status, processingTimeSeconds, customLabel }: Stat
     pending: {
       bg: 'bg-yellow-500/20',
       text: 'text-yellow-400',
-      label: 'Processing...',
+      label: 'Pending',
     },
     processing: {
       bg: 'bg-blue-500/20',
       text: 'text-blue-400',
-      label: 'Processing...',
+      label: 'Processing',
     },
     completed: {
       bg: 'bg-green-500/20',

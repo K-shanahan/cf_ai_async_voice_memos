@@ -118,11 +118,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
 
   const createdDate = parseISO(displayMemo.createdAt)
   const timeAgo = formatDistanceToNow(createdDate, { addSuffix: true })
-  const processingTime = displayMemo.updatedAt
-    ? Math.round(
-        (new Date(displayMemo.updatedAt).getTime() - new Date(displayMemo.createdAt).getTime()) / 1000
-      )
-    : undefined
 
   // Check if this is a "no speech detected" error (from memo status if failed)
   const hasNoSpeechError = displayMemo.status === 'failed'
@@ -143,7 +138,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-2xl font-bold text-white">Memo Details</h2>
-            <StatusBadge status={displayMemo.status} processingTimeSeconds={processingTime} customLabel={statusLabel} />
+            <StatusBadge status={displayMemo.status} customLabel={statusLabel} />
           </div>
           <p className="text-slate-400 text-sm">{timeAgo}</p>
         </div>
