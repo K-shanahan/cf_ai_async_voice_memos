@@ -1,12 +1,12 @@
 /**
- * useWebSocketMemo - Real-time status updates via WebSocket with fallback to polling
+ * useWebSocketMemo - Real-time status updates via WebSocket
  *
  * Architecture:
- * - WebSocket is PRIMARY data source (realtime)
- * - Local memo state derived from WebSocket events + optimistic updates
- * - Polling is FALLBACK only (500ms interval when WS fails)
+ * - WebSocket is the ONLY data source for real-time updates
+ * - Local memo state derived from WebSocket events
  * - Single source of truth: WebSocket events drive all state
- * - Eliminated polling dependency for faster, consistent UX
+ * - On completion, WebSocket closes automatically
+ * - Connection failures result in reconnection with exponential backoff
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -24,10 +24,8 @@ import { apiRequest } from '../utils/apiClient'
 import { MemoDetailResponse } from '../types/api'
 
 const API_BASE_URL = import.meta.env.VITE_WORKER_URL || 'http://localhost:8787'
-const MAX_RECONNECT_ATTEMPTS = Infinity // Reconnect indefinitely as long as task not complete
 const INITIAL_BACKOFF_MS = 1000
 const MAX_BACKOFF_MS = 30000
-const FALLBACK_POLLING_INTERVAL_MS = 500 // Fast fallback when WS unavailable
 const DEBUG = import.meta.env.DEV // Only log in development
 
 type MemoState = {
@@ -46,9 +44,8 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
-  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const intentionallyClosed = useRef(false)
-  const taskCompleteRef = useRef(false) // Track completion status without state dependency
+  const intentionallyClosed = useRef<boolean>(false)
+  const taskCompleteRef = useRef<boolean>(false) // Track completion status without state dependency
 
   // Fetch initial memo data (one-time, no polling)
   const { data: fetchedMemo } = useQuery<MemoDetailResponse>({
@@ -93,7 +90,6 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
   // Connection & error tracking
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
   const [errors, setErrors] = useState<WorkflowError[]>([])
-  const [useFallbackPolling, setUseFallbackPolling] = useState(false)
   const [isInitialized, setIsInitialized] = useState(!!memoData)
 
   // Derived: is task complete?
@@ -134,17 +130,32 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
+        // Skip processing if task is already complete (might be stray messages after close)
+        if (taskCompleteRef.current) {
+          log(`⏭️  Ignoring message after task completion`)
+          return
+        }
+
         // Validate we have data
         if (!event.data) {
           logError(`Received empty message`)
           return
         }
 
+        // Debug: log the raw message
+        if (DEBUG) {
+          console.log(`[WS:${taskId}] Raw message received:`, {
+            data: event.data,
+            type: typeof event.data,
+            constructor: event.data?.constructor?.name
+          })
+        }
+
         const data = JSON.parse(event.data) as unknown
 
         // Validate data is an object
         if (typeof data !== 'object' || data === null) {
-          logError(`Received non-object message:`, data, `(type: ${typeof data})`)
+          logError(`Received non-object message: ${JSON.stringify(data)} (type: ${typeof data})`)
           return
         }
 
@@ -233,10 +244,7 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
       }
 
       // Update overall workflow status
-      if (update.overallStatus === 'processing') {
-        newState.status = 'processing'
-        log(`📊 Status changed: ${oldStatus} → processing`)
-      } else if (update.overallStatus === 'completed') {
+      if (update.overallStatus === 'completed') {
         newState.status = 'completed'
         newState.stageProgress = {
           transcribe: 'completed',
@@ -257,15 +265,15 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
       log(`✓ Workflow ${update.overallStatus.toUpperCase()}`)
 
       // Update memo status immediately
-      setMemoState((prev) =>
-        prev
-          ? { ...prev, status: update.overallStatus === 'completed' ? 'completed' : 'failed' }
-          : prev
-      )
+      setMemoState((prev) => {
+        if (!prev) return prev
+        const newStatus = update.overallStatus === 'completed' ? 'completed' : 'failed'
+        return { ...prev, status: newStatus }
+      })
 
       // Mark as intentionally closed and task complete
-      intentionallyClosed.current = true
-      taskCompleteRef.current = true
+      intentionallyClosed.current = true as const
+      taskCompleteRef.current = true as const
 
       // Await cache invalidation and refetch
       (async () => {
@@ -397,67 +405,11 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
     return delay
   }, [])
 
-  // Fallback polling when WebSocket unavailable
-  const startFallbackPolling = useCallback(async () => {
-    if (isTaskComplete) return
-
-    setUseFallbackPolling(true)
-    log(`Starting fallback polling (${FALLBACK_POLLING_INTERVAL_MS}ms interval)`)
-
-    const pollOnce = async () => {
-      if (isTaskComplete) return
-
-      try {
-        const token = await getToken()
-        if (!token) return
-
-        const response = await apiRequest<MemoDetailResponse>(
-          `/api/v1/memo/${taskId}`,
-          {},
-          token
-        )
-
-        // Update local state with polled data
-        setMemoState((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: response.status as any,
-                transcription: response.transcription ?? prev.transcription,
-                processedTasks: response.processedTasks ?? prev.processedTasks,
-                updatedAt: response.updatedAt,
-              }
-            : prev
-        )
-
-        // If completed, stop polling
-        if (response.status === 'completed' || response.status === 'failed') {
-          setUseFallbackPolling(false)
-          return
-        }
-      } catch (error) {
-        logError('Polling error', error)
-      }
-
-      // Schedule next poll
-      pollingTimeoutRef.current = setTimeout(pollOnce, FALLBACK_POLLING_INTERVAL_MS)
-    }
-
-    pollOnce()
-  }, [taskId, isTaskComplete, getToken, log, logError])
-
   // Attempt to reconnect with exponential backoff
   const attemptReconnect = useCallback(async () => {
     // Don't reconnect if task is complete
     if (isTaskComplete) {
       return
-    }
-
-    // Infinite retry (removed MAX_RECONNECT_ATTEMPTS hard cutoff)
-    // But wait exponentially longer each time before switching to fallback
-    if (reconnectAttemptsRef.current > 10) {
-      // After 10 attempts, use both reconnect and fallback polling
-      startFallbackPolling()
     }
 
     const delay = getBackoffDelay()
@@ -469,7 +421,7 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
     }, delay)
 
     reconnectAttemptsRef.current++
-  }, [getBackoffDelay, isTaskComplete, taskId, startFallbackPolling, log])
+  }, [getBackoffDelay, isTaskComplete, log])
 
   // Connect to WebSocket
   // NOTE: Carefully manage dependencies to avoid reconnecting on every state update
@@ -498,7 +450,6 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
         log('✓ Connected')
         setConnectionStatus('connected')
         reconnectAttemptsRef.current = 0
-        setUseFallbackPolling(false)
       }
 
       ws.onmessage = handleMessage
@@ -562,14 +513,18 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
     intentionallyClosed.current = false
     taskCompleteRef.current = false
     setErrors([])
-    setUseFallbackPolling(false)
     reconnectAttemptsRef.current = 0
   }, [taskId])
 
   // Establish WebSocket connection on mount
-  // NOTE: Only depends on connectWebSocket, not isTaskComplete or memoState
-  // Check task completion status via refs instead to prevent reconnection loops
+  // NOTE: Wait for initial memo data fetch to complete before connecting
+  // This prevents connecting and showing progress for already-completed memos
   useEffect(() => {
+    // Wait for initial fetch to complete
+    if (!memoData) {
+      return
+    }
+
     // Don't connect if already complete
     if (taskCompleteRef.current) {
       setIsInitialized(true)
@@ -586,11 +541,8 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current)
-      }
     }
-  }, [connectWebSocket])
+  }, [connectWebSocket, memoData])
 
   // Close WebSocket when task completes (safe to depend on isTaskComplete here - only happens once)
   useEffect(() => {
@@ -601,12 +553,6 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
       wsRef.current.close()
       wsRef.current = null
       setConnectionStatus('disconnected')
-
-      // Stop fallback polling
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current)
-      }
-      setUseFallbackPolling(false)
     }
   }, [isTaskComplete, log])
 
@@ -620,7 +566,6 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
 
     // WebSocket status
     connectionStatus,
-    isUsingFallback: useFallbackPolling,
 
     // Workflow progress (without db_update)
     stageProgress: memoState?.stageProgress || {

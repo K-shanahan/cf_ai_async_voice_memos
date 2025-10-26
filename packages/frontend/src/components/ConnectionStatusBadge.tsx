@@ -2,7 +2,7 @@
  * ConnectionStatusBadge - Show WebSocket connection status
  *
  * Only visible when:
- * - Disconnected (shows fallback polling message)
+ * - Disconnected (shows connection lost message)
  * - Reconnecting (shows attempt message)
  *
  * Hidden when connected
@@ -13,13 +13,11 @@ import { useState } from 'react'
 
 interface ConnectionStatusBadgeProps {
   status: ConnectionStatus
-  isUsingFallback?: boolean
   onDismiss?: () => void
 }
 
 export function ConnectionStatusBadge({
   status,
-  isUsingFallback,
   onDismiss,
 }: ConnectionStatusBadgeProps) {
   const [isDismissed, setIsDismissed] = useState(false)
@@ -52,9 +50,6 @@ export function ConnectionStatusBadge({
         <div className="text-sm font-semibold">
           {status === 'reconnecting' ? 'Reconnecting...' : 'Disconnected'}
         </div>
-        {isUsingFallback && (
-          <div className="text-xs ml-1 opacity-75">using fallback polling</div>
-        )}
       </div>
 
       <button
