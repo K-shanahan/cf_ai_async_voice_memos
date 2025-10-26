@@ -27,7 +27,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     stageProgress,
     errors,
     clearErrors,
-    connectionStatus,
   } = useWebSocketMemo(taskId)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -46,10 +45,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
     return null
   }
 
-  // Show connection error if WebSocket is disconnected during processing
-  const isProcessing = memo.status === 'pending' || memo.status === 'processing'
-  const showConnectionError = isProcessing && connectionStatus === 'disconnected'
-
   // If memo is still pending/processing, show only the timeline
   if (memo.status === 'pending' || memo.status === 'processing') {
     return (
@@ -66,16 +61,6 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
             </button>
           )}
         </div>
-
-        {/* Connection error warning */}
-        {showConnectionError && (
-          <div className="p-4 bg-amber-500/10 border border-amber-500 rounded-lg">
-            <p className="text-amber-400 text-sm font-semibold mb-1">Connection Lost</p>
-            <p className="text-amber-400 text-sm">
-              Unable to receive real-time updates. Please refresh the page to reconnect, or wait for automatic reconnection (exponential backoff).
-            </p>
-          </div>
-        )}
 
         <div className="p-4 bg-slate-700/30 border border-slate-600 rounded-lg">
           <WorkflowProgressIndicator stageProgress={stageProgress} />

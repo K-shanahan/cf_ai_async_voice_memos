@@ -48,7 +48,7 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
   const taskCompleteRef = useRef<boolean>(false) // Track completion status without state dependency
 
   // Fetch initial memo data (one-time, no polling)
-  const { data: fetchedMemo } = useQuery<MemoDetailResponse>({
+  const { data: fetchedMemo, refetch } = useQuery<MemoDetailResponse>({
     queryKey: MEMO_QUERY_KEYS.detail(taskId),
     queryFn: async () => {
       const token = await getToken()
@@ -62,6 +62,13 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
     refetchInterval: false, // No polling
     retry: 2,
   })
+
+  // Refetch on mount to get latest memo status
+  useEffect(() => {
+    if (isLoaded && isSignedIn && taskId) {
+      refetch()
+    }
+  }, [taskId, isLoaded, isSignedIn, refetch])
 
   // Use either provided initialMemo or fetched memo
   const memoData = initialMemo || fetchedMemo
@@ -428,11 +435,13 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
   const connectWebSocket = useCallback(async () => {
     try {
       // Don't connect if task is already complete
+      log(`🔌 connectWebSocket called: isTaskComplete=${isTaskComplete}, memoState.status=${memoState?.status}`)
       if (isTaskComplete) {
         log('Task complete, not connecting')
         setConnectionStatus('disconnected')
         return
       }
+      log(`🔌 connectWebSocket proceeding with connection`)
 
       log('Attempting connection...')
       const token = await getToken()
@@ -505,6 +514,11 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
         updatedAt: memoData.updatedAt,
       })
       setIsInitialized(true)
+
+      // If memo is already completed/failed, mark task complete to prevent WebSocket connection
+      if (memoData.status === 'completed' || memoData.status === 'failed') {
+        taskCompleteRef.current = true
+      }
     }
   }, [memoData, taskId])
 
@@ -522,15 +536,20 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
   useEffect(() => {
     // Wait for initial fetch to complete
     if (!memoData) {
+      log(`🔌 Connection effect: waiting for memoData`)
       return
     }
 
-    // Don't connect if already complete
-    if (taskCompleteRef.current) {
+    log(`🔌 Connection effect: memoData available, status=${memoData.status}, taskCompleteRef=${taskCompleteRef.current}`)
+
+    // Don't connect if already complete - check both ref and actual data status
+    if (taskCompleteRef.current || memoData.status === 'completed' || memoData.status === 'failed') {
+      log(`🔌 Connection effect: task already complete, skipping WebSocket (ref=${taskCompleteRef.current}, dataStatus=${memoData.status})`)
       setIsInitialized(true)
       return
     }
 
+    log(`🔌 Connection effect: initiating WebSocket connection`)
     connectWebSocket()
 
     return () => {
@@ -542,7 +561,7 @@ export function useWebSocketMemo(taskId: string, initialMemo?: MemoDetailRespons
         clearTimeout(reconnectTimeoutRef.current)
       }
     }
-  }, [connectWebSocket, memoData])
+  }, [memoData, log])
 
   // Close WebSocket when task completes (safe to depend on isTaskComplete here - only happens once)
   useEffect(() => {
