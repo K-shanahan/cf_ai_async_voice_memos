@@ -1,11 +1,13 @@
 /**
  * RecordButton - Record voice memos
  * Handles recording lifecycle and audio blob generation
+ * Dispatches MEMO_CREATED action to global MemoStatusProvider
  */
 
 import { useState } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
 import { useUploadMemo } from '../hooks/useMemoApi'
+import { useMemoStatus } from '../hooks/useMemoStatus'
 
 interface RecordButtonProps {
   onUploadStart?: () => void
@@ -16,6 +18,7 @@ interface RecordButtonProps {
 export function RecordButton({ onUploadStart, onUploadSuccess, onError }: RecordButtonProps) {
   const recorder = useRecorder()
   const uploadMemo = useUploadMemo()
+  const { dispatch } = useMemoStatus()
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
 
   if (!recorder.isSupported) {
@@ -67,6 +70,27 @@ export function RecordButton({ onUploadStart, onUploadSuccess, onError }: Record
       const response = await uploadMemo.mutateAsync(recordedBlob)
       setRecordedBlob(null)
       recorder.reset()
+
+      // Dispatch MEMO_CREATED action to add to global state
+      const now = new Date().toISOString()
+      dispatch({
+        type: 'MEMO_CREATED',
+        payload: {
+          taskId: response.taskId,
+          memo: {
+            taskId: response.taskId,
+            status: 'pending',
+            createdAt: now,
+            updatedAt: now,
+            stageProgress: {
+              transcribe: 'pending',
+              extract: 'pending',
+              generate: 'pending',
+            },
+          },
+        },
+      })
+
       onUploadSuccess?.(response.taskId)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed'

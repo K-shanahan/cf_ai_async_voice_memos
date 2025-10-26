@@ -2,9 +2,8 @@
  * MemoList - Display list of all user memos split into processing and completed sections
  */
 
-import { useMemoList } from '../hooks/useMemoApi'
+import { useMemoStatus } from '../hooks/useMemoStatus'
 import { MemoCard } from './MemoCard'
-import { separateMemosByStatus } from '../utils/memoUtils'
 
 interface MemoListProps {
   onMemoClick?: (taskId: string) => void
@@ -12,11 +11,9 @@ interface MemoListProps {
 }
 
 export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListProps) {
-  const { data: memos, isLoading, error, refetch } = useMemoList()
+  const { processingMemos, completedMemos, isLoadingInitial } = useMemoStatus()
 
-  const isLoadingState = externalLoading || isLoading
-
-  if (isLoadingState) {
+  if (externalLoading || isLoadingInitial) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
@@ -29,22 +26,7 @@ export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListPr
     )
   }
 
-  if (error) {
-    return (
-      <div className="p-4 bg-red-500/10 border border-red-500 rounded-lg">
-        <p className="text-red-400 font-semibold mb-3">Failed to load memos</p>
-        <p className="text-red-300 text-sm mb-3">{error.message}</p>
-        <button
-          onClick={() => refetch()}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Try Again
-        </button>
-      </div>
-    )
-  }
-
-  if (!memos || memos.length === 0) {
+  if (processingMemos.length === 0 && completedMemos.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-slate-300 font-semibold mb-2">No memos yet</p>
@@ -53,19 +35,25 @@ export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListPr
     )
   }
 
-  const { processing, completed } = separateMemosByStatus(memos)
+  // Sort memos by creation date, most recent first
+  const sortedProcessing = [...processingMemos].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+  const sortedCompleted = [...completedMemos].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
 
   return (
     <div className="space-y-6">
       {/* Processing Memos Section */}
-      {processing.length > 0 && (
+      {sortedProcessing.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
             Processing
           </h3>
           <div className="space-y-3">
-            {processing.map((memo) => (
+            {sortedProcessing.map((memo) => (
               <MemoCard
                 key={memo.taskId}
                 memo={memo}
@@ -77,14 +65,14 @@ export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListPr
       )}
 
       {/* Completed Memos Section */}
-      {completed.length > 0 && (
+      {sortedCompleted.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 bg-green-400 rounded-full"></span>
             Completed
           </h3>
           <div className="space-y-3">
-            {completed.map((memo) => (
+            {sortedCompleted.map((memo) => (
               <MemoCard
                 key={memo.taskId}
                 memo={memo}
@@ -96,7 +84,7 @@ export function MemoList({ onMemoClick, isLoading: externalLoading }: MemoListPr
       )}
 
       {/* Empty state when all memos are processing or completed */}
-      {processing.length === 0 && completed.length === 0 && (
+      {processingMemos.length === 0 && completedMemos.length === 0 && (
         <div className="text-center py-12">
           <p className="text-slate-300 font-semibold mb-2">No memos yet</p>
           <p className="text-slate-400 text-sm">Record your first memo to get started</p>

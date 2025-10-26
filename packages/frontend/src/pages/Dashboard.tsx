@@ -11,6 +11,7 @@ import { useUser } from '@clerk/clerk-react'
 import { RecordButton } from '../components/RecordButton'
 import { MemoList } from '../components/MemoList'
 import { MemoDetail } from '../components/MemoDetail'
+import { MemoStatusProvider } from '../context/MemoStatusProvider'
 
 export function Dashboard() {
   const { isLoaded } = useUser()
@@ -37,8 +38,9 @@ export function Dashboard() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <MemoStatusProvider>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Recording + List */}
         <div className="lg:col-span-1 space-y-8">
           {/* Record Section */}
@@ -94,12 +96,13 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-4 right-4 p-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 shadow-lg max-w-xs">
-          {toastMessage}
-        </div>
-      )}
-    </main>
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-4 right-4 p-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 shadow-lg max-w-xs">
+            {toastMessage}
+          </div>
+        )}
+      </main>
+    </MemoStatusProvider>
   )
 }
