@@ -92,7 +92,6 @@ MemoStatusProvider (Global Context)
     React Query Cache (Synced on completion)
 ```
 
-```
 
 ## Project Structure
 
