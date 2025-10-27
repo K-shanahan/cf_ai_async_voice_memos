@@ -111,8 +111,6 @@ This project was developed with the assistance of AI tools, particularly **Claud
 
 ### Documentation
 ```
-Here's an expanded prompt for creating the README:
-
   I need help creating a comprehensive README for my Cloudflare Workers
   voice memo project. The project is complete and deployed, and I want a
   README that explains what it is, how it works, and what it can do.
