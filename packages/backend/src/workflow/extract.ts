@@ -3,7 +3,7 @@
  */
 
 import type { Ai } from '@cloudflare/workers-types';
-import { TASK_EXTRACTION_SYSTEM_PROMPT } from './prompts';
+import { getTaskExtractionSystemPrompt } from './prompts';
 
 export interface ProcessedTask {
   task: string;
@@ -40,7 +40,7 @@ export async function extractTasks(
     // Call Llama 3 model via Workers AI
     const aiCallStartTime = performance.now();
     const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
-      prompt: `${TASK_EXTRACTION_SYSTEM_PROMPT}
+      prompt: `${getTaskExtractionSystemPrompt()}
 
 User text to extract tasks from:
 "${transcription}"

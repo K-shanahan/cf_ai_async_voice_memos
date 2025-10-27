@@ -30,9 +30,9 @@ export class TaskStatusDO {
     this.state = state;
 
     // Debug: log what we're getting from state.id
-    console.log(`[DO Constructor] state.id:`, state.id);
-    console.log(`[DO Constructor] state.id.name:`, state.id.name);
-    console.log(`[DO Constructor] state.id.toString():`, state.id.toString());
+    // console.log(`[DO Constructor] state.id:`, state.id);
+    // console.log(`[DO Constructor] state.id.name:`, state.id.name);
+    // console.log(`[DO Constructor] state.id.toString():`, state.id.toString());
 
     // Try to extract taskId from state.id.name, but it may be set by first request
     this.taskId = state.id.name || 'unknown';
@@ -47,7 +47,7 @@ export class TaskStatusDO {
       this.updates = storedUpdates || [];
       this.taskCompleted = storedCompleted || false;
 
-      console.log(`[DO:${this.taskId}] Loaded from storage: ${this.updates.length} updates, taskCompleted=${this.taskCompleted}`);
+      // console.log(`[DO:${this.taskId}] Loaded from storage: ${this.updates.length} updates, taskCompleted=${this.taskCompleted}`);
     });
   }
 
@@ -85,7 +85,7 @@ export class TaskStatusDO {
     server.accept();
 
     this.connections.add(server);
-    console.log(`[DO:${this.taskId}] 🔌 Client connected. Total connections: ${this.connections.size}`);
+    // console.log(`[DO:${this.taskId}] 🔌 Client connected. Total connections: ${this.connections.size}`);
 
     // Send recent update history to newly connected client
     const historyMessage = JSON.stringify({
@@ -94,9 +94,9 @@ export class TaskStatusDO {
       taskCompleted: this.taskCompleted
     });
 
-    console.log(`[DO:${this.taskId}] 📨 Sending history to new client:`);
-    console.log(`  - Total updates in history: ${this.updates.length}`);
-    console.log(`  - Task completed: ${this.taskCompleted}`);
+    // console.log(`[DO:${this.taskId}] 📨 Sending history to new client:`);
+    // console.log(`  - Total updates in history: ${this.updates.length}`);
+    // console.log(`  - Task completed: ${this.taskCompleted}`);
     if (this.updates.length > 0) {
       console.log(`  - Updates:`, this.updates.map(u => ({
         stage: u.stage,
@@ -107,9 +107,9 @@ export class TaskStatusDO {
 
     try {
       server.send(historyMessage);
-      console.log(`[DO:${this.taskId}] ✅ History sent successfully to client`);
+      // console.log(`[DO:${this.taskId}] ✅ History sent successfully to client`);
     } catch (e) {
-      console.error(`[DO:${this.taskId}] ❌ Failed to send history:`, e);
+      // console.error(`[DO:${this.taskId}] ❌ Failed to send history:`, e);
       this.connections.delete(server);
       return new Response(JSON.stringify({ error: 'Failed to send history' }), {
         status: 500
@@ -119,14 +119,14 @@ export class TaskStatusDO {
     // Handle client disconnect
     server.addEventListener('close', () => {
       this.connections.delete(server);
-      console.log(`[DO:${this.taskId}] 🔌 Client disconnected. Total connections: ${this.connections.size}`);
+      // console.log(`[DO:${this.taskId}] 🔌 Client disconnected. Total connections: ${this.connections.size}`);
     });
 
     // Handle connection errors
     server.addEventListener('error', (error) => {
       this.connections.delete(server);
       console.error(`[DO:${this.taskId}] ❌ WebSocket error:`, error);
-      console.log(`[DO:${this.taskId}] 🔌 Connection error. Total connections: ${this.connections.size}`);
+      // console.log(`[DO:${this.taskId}] 🔌 Connection error. Total connections: ${this.connections.size}`);
     });
 
     // Return the client side of the WebSocket pair
@@ -148,12 +148,12 @@ export class TaskStatusDO {
         console.log(`[DO] 🔧 Initializing taskId from first update: ${this.taskId}`);
       }
 
-      console.log(`[DO:${this.taskId}] 📤 RECEIVED UPDATE:`);
-      console.log(`  - stage: ${update.stage}`);
-      console.log(`  - status: ${update.status}`);
-      console.log(`  - overallStatus: ${update.overallStatus || 'undefined'}`);
-      console.log(`  - taskId: ${update.taskId}`);
-      console.log(`  - Full payload:`, JSON.stringify(update));
+      // console.log(`[DO:${this.taskId}] 📤 RECEIVED UPDATE:`);
+      // console.log(`  - stage: ${update.stage}`);
+      // console.log(`  - status: ${update.status}`);
+      // console.log(`  - overallStatus: ${update.overallStatus || 'undefined'}`);
+      // console.log(`  - taskId: ${update.taskId}`);
+      // console.log(`  - Full payload:`, JSON.stringify(update));
 
       // Validate this update is for this DO's taskId
       if (update.taskId !== this.taskId) {
@@ -194,18 +194,18 @@ export class TaskStatusDO {
       const failedConnections: WebSocket[] = [];
       let successCount = 0;
 
-      console.log(`[DO:${this.taskId}] 📣 Broadcasting to ${this.connections.size} connected clients`);
-      console.log(`[DO:${this.taskId}]    Message to send:`, message);
+      // console.log(`[DO:${this.taskId}] 📣 Broadcasting to ${this.connections.size} connected clients`);
+      // console.log(`[DO:${this.taskId}]    Message to send:`, message);
 
       for (const ws of this.connections) {
         try {
-          console.log(`[DO:${this.taskId}]   📡 Sending to client...`);
+          // console.log(`[DO:${this.taskId}]   📡 Sending to client...`);
           ws.send(message);
           successCount++;
-          console.log(`[DO:${this.taskId}]   ✅ Successfully sent to client ${successCount}:`);
-          console.log(`[DO:${this.taskId}]      - stage: ${update.stage}`);
-          console.log(`[DO:${this.taskId}]      - status: ${update.status}`);
-          console.log(`[DO:${this.taskId}]      - overallStatus: ${update.overallStatus || 'undefined'}`);
+          // console.log(`[DO:${this.taskId}]   ✅ Successfully sent to client ${successCount}:`);
+          // console.log(`[DO:${this.taskId}]      - stage: ${update.stage}`);
+          // console.log(`[DO:${this.taskId}]      - status: ${update.status}`);
+          // console.log(`[DO:${this.taskId}]      - overallStatus: ${update.overallStatus || 'undefined'}`);
         } catch (e) {
           // Mark for deletion if send fails
           console.error(`[DO:${this.taskId}]   ❌ Failed to send to client:`, e);

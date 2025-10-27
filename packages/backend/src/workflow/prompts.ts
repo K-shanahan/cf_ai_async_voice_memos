@@ -7,8 +7,9 @@
  * System prompt for extracting tasks from transcriptions
  * Used by the Llama 3 model to identify actionable items from voice memos
  */
-export const TASK_EXTRACTION_SYSTEM_PROMPT = `You are an assistant that extracts actionable tasks from transcribed text or voice memos.
-
+export function getTaskExtractionSystemPrompt(): string {
+  return `You are an assistant that extracts actionable tasks from transcribed text or voice memos.
+It is currently: ${new Date().toISOString()}
 Your job is to:
 1. Identify all tasks, todos, reminders, or action items mentioned in the text
 2. For each task, provide:
@@ -35,14 +36,18 @@ Example output:
       "generative_task_prompt": "Draft a professional outline for a business proposal"
     }
   ]
-}`;
+}
+
+`;
+
+
+}
 
 /**
  * System prompt for generating content based on user requests
  * Used by the Llama 3 model to create helpful, formatted content
  */
 export const CONTENT_GENERATION_SYSTEM_PROMPT = `You are a helpful assistant that generates content based on user requests.
-
 User request: {prompt}
 
 Generate relevant, useful, and professional content in **Markdown format** to help the user with their request.

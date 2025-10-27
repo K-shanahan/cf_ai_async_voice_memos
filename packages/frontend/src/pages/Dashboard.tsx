@@ -89,9 +89,11 @@ export function Dashboard() {
             <section className="bg-slate-800/50 border border-slate-700 rounded-lg p-6 text-center py-12">
               <p className="text-slate-300 font-semibold mb-2">Select a memo to view details</p>
               <p className="text-slate-400 text-sm">
-                Record a new memo or click on an existing one to see the transcription and extracted tasks
+            Stuck for inspiration? Try "Remind me to email the client tomorrow about the new proposal"
               </p>
             </section>
+            
+            
           )}
         </div>
       </div>
