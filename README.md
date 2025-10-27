@@ -2,6 +2,8 @@
 
 A serverless system that transcribes voice memos and automatically extracts actionable tasks using AI.
 
+### Live Demo: https://master.voice-memo-frontend.pages.dev/ 
+
 > **📦 Monorepo Structure**: This project is organized as a **pnpm workspaces monorepo** with three packages:
 > - **`@project/shared`** - Shared types, API client, and utilities
 > - **`@project/backend`** - Cloudflare Workers REST API
@@ -102,6 +104,7 @@ Contributions welcome! Please:
 
 MIT
 
+
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/cf_ai_async_voice_memos/issues)
@@ -115,3 +118,5 @@ MIT
 - [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
 - [Cloudflare Queues](https://developers.cloudflare.com/queues/)
 - [Workers AI](https://developers.cloudflare.com/workers-ai/)
+
+This project was developed with the assistance of AI, including Claude, which helped with architecture design, code generation, and documentation.
