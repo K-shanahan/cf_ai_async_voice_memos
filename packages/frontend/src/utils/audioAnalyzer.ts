@@ -28,14 +28,15 @@ export class AudioAnalyzer {
    * Get the current volume level as a normalized percentage (0-100)
    */
   getVolume(): number {
-    this.analyser.getByteFrequencyData(this.dataArray);
+    const data = new Uint8Array(this.dataArray.length);
+    this.analyser.getByteFrequencyData(data);
 
     // Calculate average frequency magnitude
     let sum = 0;
-    for (let i = 0; i < this.dataArray.length; i++) {
-      sum += this.dataArray[i];
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i];
     }
-    const average = sum / this.dataArray.length;
+    const average = sum / data.length;
 
     // Normalize to 0-100 range
     // Most audio levels fall in the 0-100 range of byte values

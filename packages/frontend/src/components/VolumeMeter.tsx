@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 interface VolumeMeterProps {
   volume: number; // 0-100
