@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-react'
 import { useMemoStatus } from '../hooks/useMemoStatus'
-import { AudioPlayer } from './AudioPlayer'
+import { AudioPreview } from './AudioPreview'
 import { DeleteConfirmation } from './DeleteConfirmation'
 import { StatusBadge } from './StatusBadge'
 import { WorkflowProgressIndicator } from './WorkflowProgressIndicator'
@@ -207,7 +207,7 @@ export function MemoDetail({ taskId, onClose, onDelete }: MemoDetailProps) {
       {/* Audio Player */}
       <div className="space-y-2">
         <h3 className="text-lg font-semibold text-white">Audio</h3>
-        <AudioPlayer key={taskId} taskId={taskId} />
+        <AudioPreview taskId={taskId} showDownloadButton={true} />
       </div>
 
       {/* Actions */}
