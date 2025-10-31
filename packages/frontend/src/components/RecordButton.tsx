@@ -8,6 +8,8 @@ import { useState } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
 import { useUploadMemo } from '../hooks/useMemoApi'
 import { useMemoStatus } from '../hooks/useMemoStatus'
+import { VolumeMeter } from './VolumeMeter'
+import { RecordingPreview } from './RecordingPreview'
 
 interface RecordButtonProps {
   onUploadStart?: () => void
@@ -102,14 +104,20 @@ export function RecordButton({ onUploadStart, onUploadSuccess, onError }: Record
   if (recorder.isRecording) {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-center gap-3 p-4 bg-blue-500/10 border border-blue-500 rounded-lg">
-          <div className="flex gap-1">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+        <div className="p-4 bg-blue-500/10 border border-blue-500 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+            </div>
+            <div className="text-lg font-semibold text-blue-400">
+              {String(recorder.duration).padStart(2, '0')}s
+            </div>
           </div>
-          <div className="text-lg font-semibold text-blue-400">
-            {String(recorder.duration).padStart(2, '0')}s
+
+          <div className="flex justify-center py-4">
+            <VolumeMeter volume={recorder.volume} barCount={8} isActive={true} />
           </div>
         </div>
 
@@ -125,39 +133,14 @@ export function RecordButton({ onUploadStart, onUploadSuccess, onError }: Record
 
   // Recorded audio ready for upload
   if (recordedBlob) {
-    const sizeKB = (recordedBlob.size / 1024).toFixed(1)
-
     return (
-      <div className="space-y-3">
-        <div className="p-4 bg-green-500/10 border border-green-500 rounded-lg">
-          <p className="text-sm text-green-400 font-semibold">Recording saved</p>
-          <p className="text-xs text-green-300 mt-1">Size: {sizeKB} KB</p>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={handleUpload}
-            disabled={uploadMemo.isPending}
-            className="flex-1 px-4 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            {uploadMemo.isPending ? 'Uploading...' : 'Upload'}
-          </button>
-
-          <button
-            onClick={handleDiscardRecording}
-            disabled={uploadMemo.isPending}
-            className="px-4 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            Discard
-          </button>
-        </div>
-
-        {uploadMemo.error && (
-          <div className="p-3 bg-red-500/10 border border-red-500 rounded-lg text-red-400 text-sm">
-            {uploadMemo.error.message || 'Upload failed'}
-          </div>
-        )}
-      </div>
+      <RecordingPreview
+        recordedBlob={recordedBlob}
+        onUpload={handleUpload}
+        onDiscard={handleDiscardRecording}
+        isUploading={uploadMemo.isPending}
+        uploadError={uploadMemo.error?.message || null}
+      />
     )
   }
 
