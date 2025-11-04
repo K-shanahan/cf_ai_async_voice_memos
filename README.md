@@ -172,7 +172,6 @@ This application uses **Cloudflare Durable Objects** and **native WebSockets** t
 
 - **WorkflowProgressIndicator**: Displays a 4-stage timeline with real-time progress
 - **ConnectionStatusBadge**: Shows WebSocket connection status (only visible when disconnected)
-- **ErrorLogPanel**: Displays any errors that occur during processing
 - **useWebSocketMemo Hook**: Custom React hook managing per-task WebSocket connections
 
 ## Contributing
@@ -191,7 +190,7 @@ MIT
 
 ## Support
 
-- **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/cf_ai_async_voice_memos/issues)
+- **Issues:** [GitHub Issues](https://github.com/K-Shanahan/cf_ai_async_voice_memos/issues)
 - **Cloudflare Docs:** [developers.cloudflare.com](https://developers.cloudflare.com)
 
 ## Acknowledgments
